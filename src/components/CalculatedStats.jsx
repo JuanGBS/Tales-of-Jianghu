@@ -1,30 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 function EditableStat({ label, currentValue, maxValue, onSave, colorClass }) {
-  const [isEditing, setIsEditing] = anidar [useState](false);
-  const [value, setValue] = anidar [useState](currentValue);
+  // A CORREÇÃO ESTÁ AQUI: A palavra "anidar" foi removida.
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(currentValue);
   const inputRef = useRef(null);
 
   useEffect(() => {
     if (isEditing) {
+      setValue(currentValue);
       inputRef.current?.focus();
-      inputRef.current?.select();
     }
-  }, [isEditing]);
+  }, [isEditing, currentValue]);
 
   const handleSave = () => {
     let finalValue = currentValue;
-
     const inputValue = String(value);
 
     if (inputValue.startsWith('+') || inputValue.startsWith('-')) {
       const amount = parseInt(inputValue.substring(1), 10);
       if (!isNaN(amount)) {
-        if (inputValue.startsWith('+')) {
-          finalValue = currentValue + amount;
-        } else { // Se começar com '-'
-          finalValue = currentValue - amount;
-        }
+        finalValue = inputValue.startsWith('+') ? currentValue + amount : currentValue - amount;
       }
     } else {
       const absoluteValue = parseInt(inputValue, 10);

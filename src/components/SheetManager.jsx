@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { CLANS_DATA } from '../data/clans';
 import ClanSelector from './ClanSelector';
 import AttributeDistributor from './AttributeDistributor';
-import CalculatedStats from './CalculatedStats';
+import CalculatedStats from './CalculatedStats'; // O import já estava aqui, o que é bom
 import characterArt from '../assets/character-art.png';
 
 const initialCharacter = {
@@ -71,7 +71,6 @@ function SheetManager({ onSave }) {
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* --- COLUNA ESQUERDA --- */}
         <div className="lg:col-span-1 space-y-8">
           <div>
             <label htmlFor="charName" className="text-xl font-semibold text-brand-text mb-2 block">Nome do Personagem</label>
@@ -85,6 +84,7 @@ function SheetManager({ onSave }) {
           </div>
           {character.clan ? (
             <>
+              {/* --- A LINHA ABAIXO FOI RESTAURADA --- */}
               <CalculatedStats stats={calculatedStats} />
               <AttributeDistributor points={character.distributedPoints} clanBonus={character.clanBonus} onPointsChange={handlePointsChange} />
             </>
@@ -95,18 +95,14 @@ function SheetManager({ onSave }) {
           )}
         </div>
 
-        {/* --- IMAGEM CENTRAL --- */}
-
         <div className="lg:col-span-1 flex justify-center -mx-8 hidden lg:flex self-end">
           <img 
             src={characterArt} 
             alt="Arte do Personagem" 
-            // A MÁGICA ESTÁ AQUI: Esta classe cria a máscara de gradiente.
             className="max-h-[75vh] object-contain [mask-image:linear-gradient(to_bottom,black_80%,transparent_100%)]" 
           />
         </div>
 
-        {/* --- COLUNA DIREITA --- */}
         <div className="lg:col-span-1 space-y-6 flex flex-col justify-between min-h-[500px]">
           <ClanSelector clans={CLANS_DATA} onClanSelect={handleClanSelect} selectedClan={character.clan} />
           {character.clan && (
