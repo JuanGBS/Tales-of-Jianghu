@@ -12,3 +12,12 @@ export const ACTION_TYPES = [
   'Reação',
   'Nenhuma',
 ];
+
+export const FIGHTING_STYLES = [
+  { id: 'lâmina', name: 'Caminho da Lâmina' },
+  { id: 'lança', name: 'Caminho da Lança' },
+  { id: 'sombra', name: 'Caminho da Sombra' },
+  { id: 'punho', name: 'Caminho do Punho' },
+  { id: 'instrumentalista', name: 'Caminho do Instrumentalista' },
+  { id: 'arco', name: 'Caminho do Arco' },
+];

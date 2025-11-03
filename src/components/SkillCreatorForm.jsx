@@ -35,11 +35,11 @@ function SkillCreatorForm({ onSave, onCancel, initialData }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h4 className="text-xl font-bold text-brand-text text-center">
-        {isEditing ? 'Editar Habilidade' : 'Nova Habilidade'}
+        {isEditing ? 'Editar Tecnica' : 'Nova Tecnica'}
       </h4>
       
       <div>
-        <label htmlFor="name" className="text-sm font-semibold text-gray-600 mb-1 block">Nome da Habilidade</label>
+        <label htmlFor="name" className="text-sm font-semibold text-gray-600 mb-1 block">Nome da Tecnica</label>
         <input id="name" name="name" value={skill.name} onChange={handleChange} className={inputStyle} required />
       </div>
       
@@ -100,7 +100,7 @@ function SkillCreatorForm({ onSave, onCancel, initialData }) {
       <div className="flex justify-end space-x-3 pt-2">
         <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-md font-semibold">Cancelar</button>
         <button type="submit" className="px-6 py-2 bg-brand-primary text-brand-text font-bold rounded-md hover:brightness-105 shadow-sm">
-          {isEditing ? 'Salvar Alterações' : 'Salvar Habilidade'}
+          {isEditing ? 'Salvar Alterações' : 'Salvar Tecnica'}
         </button>
       </div>
     </form>

@@ -4,7 +4,7 @@ import { UserCircleIcon, SparklesIcon } from '@heroicons/react/24/solid';
 function SheetNavigation({ activeTab, setActiveTab }) {
   const tabs = [
     { id: 'sheet', label: 'Ficha', icon: UserCircleIcon },
-    { id: 'skills', label: 'Habilidades', icon: SparklesIcon },
+    { id: 'skills', label: 'Técnicas', icon: SparklesIcon },
   ];
 
   return (

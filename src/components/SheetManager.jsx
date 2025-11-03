@@ -3,17 +3,23 @@ import { CLANS_DATA } from '../data/clans';
 import ClanSelector from './ClanSelector';
 import AttributeDistributor from './AttributeDistributor';
 import CalculatedStats from './CalculatedStats';
+import FightingStyleSelector from './FightingStyleSelector';
+import StyleInfoModal from './StyleInfoModal';
 import characterArt from '../assets/character-art.png';
 
 const initialCharacter = {
-  name: 'Herói Sem Nome', clan: null,
+  name: 'Herói Sem Nome',
+  clan: null,
+  fightingStyle: '',
   distributedPoints: { vigor: 0, agility: 0, discipline: 0, comprehension: 0, presence: 0 },
   clanBonus: { vigor: 0, agility: 0, discipline: 0, comprehension: 0, presence: 0 },
-  baseHp: 0, proficientSkills: [],
+  baseHp: 0,
+  proficientSkills: [],
 };
 
 function SheetManager({ onSave }) {
   const [character, setCharacter] = useState(initialCharacter);
+  const [isStyleInfoModalOpen, setIsStyleInfoModalOpen] = useState(false);
 
   const handleClanSelect = (clanId) => {
     const clanData = CLANS_DATA[clanId];
@@ -38,6 +44,10 @@ function SheetManager({ onSave }) {
     setCharacter(prev => ({ ...prev, distributedPoints: newPoints }));
   };
 
+  const handleStyleChange = (e) => {
+    setCharacter(prev => ({ ...prev, fightingStyle: e.target.value }));
+  };
+
   const finalAttributes = Object.keys(character.distributedPoints).reduce((acc, attr) => {
     acc[attr] = (character.clanBonus[attr] || 0) + (character.distributedPoints[attr] || 0);
     return acc;
@@ -53,6 +63,7 @@ function SheetManager({ onSave }) {
     const finalCharacterData = {
       name: character.name,
       clanId: character.clan,
+      fightingStyle: character.fightingStyle,
       attributes: finalAttributes,
       stats: {
         ...calculatedStats,
@@ -104,16 +115,33 @@ function SheetManager({ onSave }) {
 
         <div className="lg:col-span-1 space-y-6 flex flex-col justify-between min-h-[500px]">
           <ClanSelector clans={CLANS_DATA} onClanSelect={handleClanSelect} selectedClan={character.clan} />
+          
+          {character.clan && (
+            <div className="mt-auto">
+              <FightingStyleSelector 
+                selectedStyle={character.fightingStyle} 
+                onStyleChange={handleStyleChange}
+                onInfoClick={() => setIsStyleInfoModalOpen(true)}
+              />
+            </div>
+          )}
+
           {character.clan && (
              <button
               onClick={handleFinishCreation}
-              className="w-full bg-brand-primary hover:brightness-105 text-brand-text font-bold py-4 px-6 rounded-lg text-xl transition-all shadow-lg"
+              disabled={!character.fightingStyle}
+              className="w-full bg-brand-primary hover:brightness-105 text-brand-text font-bold py-4 px-6 rounded-lg text-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Finalizar Criação
             </button>
           )}
         </div>
       </div>
+      
+      <StyleInfoModal 
+        isOpen={isStyleInfoModalOpen}
+        onClose={() => setIsStyleInfoModalOpen(false)}
+      />
     </div>
   );
 }
