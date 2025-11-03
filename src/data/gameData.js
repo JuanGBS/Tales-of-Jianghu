@@ -40,9 +40,17 @@ export const BODY_REFINEMENT_LEVELS = [
   { id: 6, name: 'Nível 6: Vasculho Indestrutível', multiplier: 3.5 },
 ];
 
-export const CULTIVATION_LEVELS = [
-  { id: 0, name: 'Nenhum', description: 'Ainda não iniciou a jornada.' },
-  { id: 1, name: 'Inicial', description: 'Acesso a novas técnicas.' },
-  { id: 2, name: 'Intermediário', description: 'Aumenta Pontos de Chi Máximos em +5.' },
-  { id: 3, name: 'Especialista', description: 'Ganha um ponto para aumentar um atributo.' },
+export const CULTIVATION_STAGES = [
+  { id: 0, name: 'Estágio I (Praticante)', multiplier: 1 },
+  { id: 1, name: 'Estágio II (Iniciado)', multiplier: 1.2 },
+  { id: 2, name: 'Estágio III (Intermediário)', multiplier: 1.5 },
+  { id: 3, name: 'Estágio IV (Especialista)', multiplier: 1.8 },
+  { id: 4, name: 'Estágio V (Mestre)', multiplier: 2.2 },
+];
+
+export const MASTERY_LEVELS = [
+  { id: 0, name: 'Nenhum', description: 'Ainda não iniciou a jornada.', bonus: 0 },
+  { id: 1, name: 'Nível Inicial', description: 'Acesso a novas técnicas do estágio.', bonus: 0 },
+  { id: 2, name: 'Nível Intermediário', description: 'Aumenta Pontos de Chi Máximos em +5.', bonus: 5 },
+  { id: 3, name: 'Nível Especialista', description: 'Ganha um ponto para aumentar um atributo.', bonus: 0 }, 
 ];

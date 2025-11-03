@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CLANS_DATA } from '../data/clans';
-import { FIGHTING_STYLES, BODY_REFINEMENT_LEVELS } from '../data/gameData';
+import { FIGHTING_STYLES, BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from '../data/gameData';
 import characterArt from '../assets/character-art.png';
 import { ATTRIBUTE_TRANSLATIONS } from '../data/translations';
 import { ATTRIBUTE_PERICIAS } from '../data/gameData';
@@ -11,7 +11,6 @@ import EditableStat from './EditableStat';
 import Modal from './Modal';
 import TechniqueCreatorForm from './TechniqueCreatorForm';
 import ConfirmationModal from './ConfirmationModal';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
   const clan = CLANS_DATA[character.clanId];
@@ -47,6 +46,10 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
   };
 
   const handleProgressionChange = (path, newLevel) => {
+    if (path === 'bodyRefinementLevel' && newLevel >= BODY_REFINEMENT_LEVELS.length) return;
+    if (path === 'cultivationStage' && newLevel >= CULTIVATION_STAGES.length) return;
+    if (path === 'masteryLevel' && newLevel >= MASTERY_LEVELS.length) return;
+    
     const updatedCharacter = { ...character, [path]: newLevel };
     onUpdateCharacter(updatedCharacter);
   };
@@ -67,6 +70,11 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
   const refinementMultiplier = BODY_REFINEMENT_LEVELS.find(l => l.id === (character.bodyRefinementLevel || 0))?.multiplier || 1;
   const displayMaxHp = Math.floor(baseMaxHp * refinementMultiplier);
 
+  const baseMaxChi = character.stats.maxChi;
+  const cultivationMultiplier = CULTIVATION_STAGES.find(s => s.id === (character.cultivationStage || 0))?.multiplier || 1;
+  const masteryBonus = MASTERY_LEVELS.find(l => l.id === (character.masteryLevel || 0))?.bonus || 0;
+  const displayMaxChi = Math.floor(baseMaxChi * cultivationMultiplier) + masteryBonus;
+
   const RightColumnContent = () => {
     if (activeTab === 'techniques') {
       return (
@@ -78,11 +86,9 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
         />
       );
     }
-
     if (activeTab === 'progression') {
-        return <ProgressionPage character={character} onProgressionChange={handleProgressionChange} />;
+      return <ProgressionPage character={character} onTrain={handleProgressionChange} />;
     }
-
     return (
       <div className="w-full self-start flex flex-col space-y-6">
         <div className="bg-white p-6 rounded-2xl shadow-lg w-full">
@@ -92,7 +98,6 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
               <p className="text-sm text-gray-600 mt-1">{clan.passiveAbility.description}</p>
             </div>
         </div>
-
         <div className="bg-white p-6 rounded-2xl shadow-lg w-full flex flex-col">
           <div>
             <div className="flex justify-between items-center mb-4">
@@ -100,7 +105,7 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
             </div>
             <div className="bg-gray-100 p-4 rounded-lg flex justify-around text-center">
               <EditableStat label="PV" currentValue={character.stats.currentHp} maxValue={displayMaxHp} onSave={(newValue) => handleStatChange('currentHp', newValue)} colorClass="text-green-600" />
-              <EditableStat label="Chi" currentValue={character.stats.currentChi} maxValue={character.stats.maxChi} onSave={(newValue) => handleStatChange('currentChi', newValue)} colorClass="text-blue-500" />
+              <EditableStat label="Chi" currentValue={character.stats.currentChi} maxValue={displayMaxChi} onSave={(newValue) => handleStatChange('currentChi', newValue)} colorClass="text-blue-500" />
               <EditableStat label="CA" currentValue={character.stats.armorClass} onSave={(newValue) => handleStatChange('armorClass', newValue)} colorClass="text-red-600" />
             </div>
           </div>
@@ -137,7 +142,10 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
                     <h5 className="font-bold text-brand-text border-b pb-2 mb-2">Perícias de {ATTRIBUTE_TRANSLATIONS[key]}</h5>
                     <div className="space-y-1 text-sm">
                       {(ATTRIBUTE_PERICIAS[key] || []).map(periciaName => (
-                        <div key={periciaName} className="flex justify-between"><span className="text-gray-600">{periciaName}</span><span className="font-bold text-purple-700">+{value}</span></div>
+                        <div key={periciaName} className="flex justify-between">
+                          <span className="text-gray-600">{periciaName}</span>
+                          <span className="font-bold text-purple-700">+{value}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
