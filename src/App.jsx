@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import SheetManager from './components/SheetManager';
 import CharacterSheet from './components/CharacterSheet';
+import NotificationToast from './components/NotificationToast';
 
 const STORAGE_KEY = 'tales-of-jianghu-character';
 
 function App() {
   const [character, setCharacter] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     const savedCharacter = localStorage.getItem(STORAGE_KEY);
@@ -29,6 +31,10 @@ function App() {
     setCharacter(updatedCharacter);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedCharacter));
   };
+  
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
 
   return (
     <main>
@@ -36,10 +42,19 @@ function App() {
         <CharacterSheet 
           character={character} 
           onDelete={handleDeleteCharacter} 
-          onUpdateCharacter={handleUpdateCharacter} 
+          onUpdateCharacter={handleUpdateCharacter}
+          showNotification={showNotification}
         />
       ) : (
         <SheetManager onSave={handleSaveCharacter} />
+      )}
+
+      {notification && (
+        <NotificationToast
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
       )}
     </main>
   );

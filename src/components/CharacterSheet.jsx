@@ -12,7 +12,7 @@ import Modal from './Modal';
 import TechniqueCreatorForm from './TechniqueCreatorForm';
 import ConfirmationModal from './ConfirmationModal';
 
-function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
+function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification }) {
   const clan = CLANS_DATA[character.clanId];
   const [activeTab, setActiveTab] = useState('sheet');
   const [editingTechnique, setEditingTechnique] = useState(null);
@@ -45,13 +45,12 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
     onUpdateCharacter(updatedCharacter);
   };
 
-  const handleProgressionChange = (path, newLevel) => {
-    if (path === 'bodyRefinementLevel' && newLevel >= BODY_REFINEMENT_LEVELS.length) return;
-    if (path === 'cultivationStage' && newLevel >= CULTIVATION_STAGES.length) return;
-    if (path === 'masteryLevel' && newLevel >= MASTERY_LEVELS.length) return;
-    
-    const updatedCharacter = { ...character, [path]: newLevel };
-    onUpdateCharacter(updatedCharacter);
+  const handleProgressionChange = (updates) => {
+    const newCharacterState = { ...character, ...updates };
+    if (newCharacterState.bodyRefinementLevel >= BODY_REFINEMENT_LEVELS.length) return;
+    if (newCharacterState.cultivationStage >= CULTIVATION_STAGES.length) return;
+    if (newCharacterState.masteryLevel >= MASTERY_LEVELS.length) return;
+    onUpdateCharacter(newCharacterState);
   };
 
   const openCreateModal = () => setIsCreating(true);
@@ -77,17 +76,10 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
 
   const RightColumnContent = () => {
     if (activeTab === 'techniques') {
-      return (
-        <TechniquesPage 
-          character={character}
-          onDeleteTechnique={handleTechniqueDelete}
-          openCreateModal={openCreateModal}
-          openEditModal={openEditModal}
-        />
-      );
+      return <TechniquesPage character={character} onDeleteTechnique={handleTechniqueDelete} openCreateModal={openCreateModal} openEditModal={openEditModal} />;
     }
     if (activeTab === 'progression') {
-      return <ProgressionPage character={character} onTrain={handleProgressionChange} />;
+      return <ProgressionPage character={character} onTrain={handleProgressionChange} showNotification={showNotification} />;
     }
     return (
       <div className="w-full self-start flex flex-col space-y-6">
@@ -124,29 +116,18 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
       </h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-grow">
         <div className="lg:col-span-1 bg-white p-8 rounded-2xl shadow-lg space-y-4 w-full self-start">
-          <div>
-            <h2 className="text-4xl font-bold text-brand-text">{character.name}</h2>
-            <p className="text-lg text-gray-500">{clan.name}</p>
-          </div>
+          <div><h2 className="text-4xl font-bold text-brand-text">{character.name}</h2><p className="text-lg text-gray-500">{clan.name}</p></div>
           <hr />
           <div>
             <h3 className="text-xl font-semibold text-brand-text">Atributos Finais</h3>
             <div className="space-y-2 mt-3">
               {Object.entries(character.attributes).map(([key, value]) => (
                 <div key={key} className="relative group">
-                  <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
-                    <span className="font-bold text-gray-700">{ATTRIBUTE_TRANSLATIONS[key]}</span>
-                    <span className="text-2xl font-bold text-purple-700">{value}</span>
-                  </div>
+                  <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg"><span className="font-bold text-gray-700">{ATTRIBUTE_TRANSLATIONS[key]}</span><span className="text-2xl font-bold text-purple-700">{value}</span></div>
                   <div className="absolute left-full top-0 ml-4 w-64 bg-white p-4 rounded-lg shadow-xl border z-10 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
                     <h5 className="font-bold text-brand-text border-b pb-2 mb-2">Perícias de {ATTRIBUTE_TRANSLATIONS[key]}</h5>
                     <div className="space-y-1 text-sm">
-                      {(ATTRIBUTE_PERICIAS[key] || []).map(periciaName => (
-                        <div key={periciaName} className="flex justify-between">
-                          <span className="text-gray-600">{periciaName}</span>
-                          <span className="font-bold text-purple-700">+{value}</span>
-                        </div>
-                      ))}
+                      {(ATTRIBUTE_PERICIAS[key] || []).map(periciaName => (<div key={periciaName} className="flex justify-between"><span className="text-gray-600">{periciaName}</span><span className="font-bold text-purple-700">+{value}</span></div>))}
                     </div>
                   </div>
                 </div>
@@ -169,23 +150,10 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter }) {
       {!anyModalIsOpen && <SheetNavigation activeTab={activeTab} setActiveTab={setActiveTab} />}
 
       <Modal isOpen={isFormModalOpen} onClose={closeFormModal}>
-        <TechniqueCreatorForm 
-          onSave={(techniqueData) => {
-            handleTechniquesUpdate(techniqueData);
-            closeFormModal();
-          }} 
-          onCancel={closeFormModal} 
-          initialData={editingTechnique?.technique}
-        />
+        <TechniqueCreatorForm onSave={(techniqueData) => { handleTechniquesUpdate(techniqueData); closeFormModal(); }} onCancel={closeFormModal} initialData={editingTechnique?.technique} />
       </Modal>
 
-      <ConfirmationModal 
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleConfirmDelete}
-        title="Apagar Personagem?"
-        message="Esta ação é permanente e não pode ser desfeita. Você tem certeza que deseja apagar esta ficha?"
-      />
+      <ConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleConfirmDelete} title="Apagar Personagem?" message="Esta ação é permanente e não pode ser desfeita. Você tem certeza que deseja apagar esta ficha?" />
     </div>
   );
 }
