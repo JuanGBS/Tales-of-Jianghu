@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { supabase } from './services/supabaseClient';
+import SheetManager from './pages/SheetManager.jsx';
+import CharacterSheet from './pages/CharacterSheet.jsx';
+import NotificationToast from './components/ui/NotificationToast.jsx';
+import AuthPage from './pages/AuthPage.jsx';
+import RollHistoryDrawer from './components/ui/RollHistoryDrawer.jsx';
 
-import SheetManager from './components/SheetManager';
-import CharacterSheet from './components/CharacterSheet';
-import NotificationToast from './components/NotificationToast';
-import AuthPage from './pages/AuthPage';
-
-// Função auxiliar para mapear de snake_case (banco de dados) para camelCase (React)
 const mapToCamelCase = (data) => {
   if (!data) return null;
   return {
@@ -33,6 +32,30 @@ function AppContent() {
   const [character, setCharacter] = useState(null);
   const [characterLoading, setCharacterLoading] = useState(true);
   const [notification, setNotification] = useState(null);
+  const [rollHistory, setRollHistory] = useState(() => {
+    const saved = localStorage.getItem('rollHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('rollHistory', JSON.stringify(rollHistory));
+  }, [rollHistory]);
+
+  const addRollToHistory = (rollData) => {
+    const newHistory = [rollData, ...rollHistory].slice(0, 15);
+    setRollHistory(newHistory);
+    setIsHistoryOpen(true);
+  };
+
+  // --- INÍCIO DA ALTERAÇÃO ---
+  // 1. Criamos a função para limpar o estado
+  const handleClearHistory = () => {
+    setRollHistory([]);
+    // Opcional: mostrar uma notificação de sucesso
+    showNotification("Histórico de rolagens limpo!", "success");
+  };
+  // --- FIM DA ALTERAÇÃO ---
 
   useEffect(() => {
     if (user) {
@@ -47,7 +70,7 @@ function AppContent() {
         if (error && error.code !== 'PGRST116') {
           console.error("Erro ao buscar personagem:", error);
         } else {
-          setCharacter(mapToCamelCase(data)); // USA O MAPEAMENTO
+          setCharacter(mapToCamelCase(data));
         }
         setCharacterLoading(false);
       };
@@ -70,6 +93,10 @@ function AppContent() {
           attributes: characterData.attributes,
           stats: characterData.stats,
           proficient_pericias: characterData.proficientPericias,
+          bodyRefinementLevel: characterData.bodyRefinementLevel,
+          cultivationStage: characterData.cultivationStage,
+          masteryLevel: characterData.masteryLevel,
+          techniques: characterData.techniques,
         }
       ])
       .select()
@@ -79,7 +106,7 @@ function AppContent() {
       console.error("Erro ao criar personagem:", error);
       showNotification("Falha ao criar personagem.", "error");
     } else {
-      setCharacter(mapToCamelCase(data)); // USA O MAPEAMENTO
+      setCharacter(mapToCamelCase(data));
     }
   };
 
@@ -90,11 +117,11 @@ function AppContent() {
       showNotification("Falha ao apagar personagem.", "error");
     } else {
       setCharacter(null);
+      setRollHistory([]);
     }
   };
 
   const handleUpdateCharacter = async (updatedCharacter) => {
-    // Mapeia de camelCase (React) para snake_case (banco de dados) antes de salvar
     const dataToUpdate = {
       id: updatedCharacter.id,
       user_id: updatedCharacter.userId,
@@ -122,7 +149,7 @@ function AppContent() {
       console.error("Erro ao atualizar personagem:", error);
       showNotification("Falha ao salvar alterações.", "error");
     } else {
-      setCharacter(mapToCamelCase(data)); // USA O MAPEAMENTO
+      setCharacter(mapToCamelCase(data));
     }
   };
   
@@ -139,22 +166,38 @@ function AppContent() {
   }
   
   return (
-    <>
-      {character ? (
-        <CharacterSheet 
-          character={character} 
-          onDelete={handleDeleteCharacter} 
-          onUpdateCharacter={handleUpdateCharacter}
-          showNotification={showNotification}
-          signOut={signOut}
+    <div className="relative min-h-screen">
+      <main>
+        {character ? (
+          <CharacterSheet 
+            character={character} 
+            onDelete={handleDeleteCharacter} 
+            onUpdateCharacter={handleUpdateCharacter}
+            showNotification={showNotification}
+            signOut={signOut}
+            addRollToHistory={addRollToHistory}
+          />
+        ) : (
+          <SheetManager onSave={handleSaveCharacter} />
+        )}
+      </main>
+
+      {character && (
+        <RollHistoryDrawer 
+          history={rollHistory}
+          isOpen={isHistoryOpen}
+          onToggle={() => setIsHistoryOpen(!isHistoryOpen)}
+          // --- INÍCIO DA ALTERAÇÃO ---
+          // 2. Passamos a função para o componente filho
+          onClearHistory={handleClearHistory}
+          // --- FIM DA ALTERAÇÃO ---
         />
-      ) : (
-        <SheetManager onSave={handleSaveCharacter} />
       )}
+
       {notification && (
         <NotificationToast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />
       )}
-    </>
+    </div>
   );
 }
 

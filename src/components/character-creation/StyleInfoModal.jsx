@@ -1,5 +1,5 @@
 import React from 'react';
-import Modal from './Modal'; // Reutilizamos nosso modal base
+import Modal from '../ui/Modal';
 
 function StyleInfoModal({ isOpen, onClose }) {
   return (

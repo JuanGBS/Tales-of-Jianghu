@@ -1,47 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import Modal from './Modal';
+import Modal from '../ui/Modal';
 
-// Função auxiliar para gerar um número aleatório de 1 a 20
 const getRandomRoll = () => Math.floor(Math.random() * 20) + 1;
 
-function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue }) {
+function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, onRollComplete }) {
   const [rollResult, setRollResult] = useState(null);
-  const [isRolling, setIsRolling] = useState(false); // Estado para controlar a animação
-  const [displayNumber, setDisplayNumber] = useState(null); // Número exibido durante a animação
+  const [isRolling, setIsRolling] = useState(false);
+  const [displayNumber, setDisplayNumber] = useState(null);
 
   useEffect(() => {
-    // Se não estamos rolando, não faz nada
     if (!isRolling) return;
 
-    // A animação acontece aqui
     const timeouts = [];
     const finalRoll = rollResult.roll;
 
-    // Fase 1: Rápida (50ms)
     for (let i = 0; i < 8; i++) {
       timeouts.push(setTimeout(() => setDisplayNumber(getRandomRoll()), i * 50));
     }
-    // Fase 2: Média (120ms)
     for (let i = 0; i < 5; i++) {
       timeouts.push(setTimeout(() => setDisplayNumber(getRandomRoll()), 400 + i * 120));
     }
-    // Fase 3: Lenta (250ms)
     for (let i = 0; i < 3; i++) {
       timeouts.push(setTimeout(() => setDisplayNumber(getRandomRoll()), 1000 + i * 250));
     }
-    // Fase Final: Revela o resultado
     timeouts.push(setTimeout(() => {
       setDisplayNumber(finalRoll);
-      setIsRolling(false); // Termina a animação
+      setIsRolling(false);
+      onRollComplete(rollResult); 
     }, 1750));
 
-    // Limpa todos os timeouts se o componente for desmontado no meio da animação
     return () => timeouts.forEach(clearTimeout);
 
-  }, [isRolling, rollResult]);
+  }, [isRolling, rollResult, onRollComplete]);
 
   const handleRoll = (mode = 'normal') => {
-    if (isRolling) return; // Impede múltiplas rolagens ao mesmo tempo
+    if (isRolling) return;
 
     const roll1 = getRandomRoll();
     const roll2 = getRandomRoll();
@@ -59,7 +52,6 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue }) 
       finalRoll = roll1;
     }
     
-    // Guarda o resultado final, mas não o exibe ainda
     setRollResult({
       roll: finalRoll,
       rolls: rolls,
@@ -67,7 +59,6 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue }) 
       mode: mode,
     });
 
-    // Inicia a animação
     setIsRolling(true);
   };
 
@@ -109,7 +100,7 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue }) 
             </div>
             <button
               onClick={() => { setRollResult(null); setDisplayNumber(null); }}
-              disabled={isRolling} // Desabilita o botão durante a animação
+              disabled={isRolling}
               className="mt-6 px-6 py-2 bg-gray-200 text-brand-text font-semibold rounded-md hover:bg-gray-300 disabled:opacity-50"
             >
               Voltar

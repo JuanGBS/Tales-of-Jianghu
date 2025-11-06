@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import ConfirmationModal from './ConfirmationModal';
+import ConfirmationModal from '../ui/ConfirmationModal';
 import TechniqueCard from './TechniqueCard';
-import { FIGHTING_STYLES } from '../data/gameData'; // Importa a lista de estilos
+import { FIGHTING_STYLES } from '../../data/gameData';
 
 // Recebe 'character' em vez de 'techniques'
 function TechniquesPage({ character, onDeleteTechnique, openCreateModal, openEditModal }) {

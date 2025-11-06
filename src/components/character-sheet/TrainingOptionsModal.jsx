@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import Modal from './Modal';
+import Modal from '../ui/Modal';
+import { ATTRIBUTE_TRANSLATIONS } from '../../data/translations';
 import { SparklesIcon, FireIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/solid';
 
 const trainingOptions = [

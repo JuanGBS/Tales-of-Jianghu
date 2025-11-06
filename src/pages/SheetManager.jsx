@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { CLANS_DATA } from '../data/clans';
-import ClanSelector from './ClanSelector';
-import AttributeDistributor from './AttributeDistributor';
-import CalculatedStats from './CalculatedStats';
-import FightingStyleSelector from './FightingStyleSelector';
-import StyleInfoModal from './StyleInfoModal';
+import ClanSelector from '../components/character-creation/ClanSelector';
+import AttributeDistributor from '../components/character-creation/AttributeDistributor';
+import CalculatedStats from '../components/character-creation/CalculatedStats';
+import FightingStyleSelector from '../components/character-creation/FightingStyleSelector';
+import StyleInfoModal from '../components/character-creation/StyleInfoModal';
 import characterArt from '../assets/character-art.png';
 
 const initialCharacter = {
@@ -74,6 +74,10 @@ function SheetManager({ onSave }) {
         currentChi: calculatedStats.maxChi,
       },
       proficientPericias: character.proficientPericias,
+      bodyRefinementLevel: 0,
+      cultivationStage: 0,
+      masteryLevel: 0,
+      techniques: [],
     };
     onSave(finalCharacterData);
   };

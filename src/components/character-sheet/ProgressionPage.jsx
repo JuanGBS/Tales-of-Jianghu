@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
-import { BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from '../data/gameData';
-import TrainingOptionsModal from './TrainingOptionsModal';
+import { BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from '../../data/gameData';
+import TrainingOptionsModal from './TrainingOptionsModal'; 
+
 
 function ProgressionPage({ character, onTrain, showNotification }) {
   const [isTrainingModalOpen, setIsTrainingModalOpen] = useState(false);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
-import { FIGHTING_STYLES } from '../data/gameData';
+import { FIGHTING_STYLES } from "../../data/gameData"
 
 function FightingStyleSelector({ selectedStyle, onStyleChange, onInfoClick }) {
   const inputStyle = "w-full p-3 border bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-sm text-gray-700 appearance-none";

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SKILL_TYPES, ACTION_TYPES } from '../data/gameData';
-import { ATTRIBUTE_TRANSLATIONS } from '../data/translations';
+import { TECHNIQUE_TYPES, ACTION_TYPES } from '../../data/gameData';
+import { ATTRIBUTE_TRANSLATIONS } from '../../data/translations';
 
 const initialTechniqueState = { name: '', type: '', cost: '', action: '', attribute: '', requirements: '', effect: '' };
 
@@ -46,7 +46,7 @@ function TechniqueCreatorForm({ onSave, onCancel, initialData }) {
       <div>
         <label className="text-sm font-semibold text-gray-600 mb-2 block">Tipo</label>
         <div className="flex space-x-2">
-          {SKILL_TYPES.map((type) => {
+          {TECHNIQUE_TYPES.map((type) => {
             const Icon = type.icon;
             const isSelected = technique.type === type.id;
             return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ATTRIBUTE_TRANSLATIONS } from '../data/translations';
+import { ATTRIBUTE_TRANSLATIONS } from '../../data/translations';
 
 const ATTRIBUTE_NAMES = ['vigor', 'agility', 'discipline', 'comprehension', 'presence'];
 

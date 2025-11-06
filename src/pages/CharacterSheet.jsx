@@ -4,23 +4,22 @@ import { FIGHTING_STYLES, BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LE
 import characterArt from '../assets/character-art.png';
 import { ATTRIBUTE_TRANSLATIONS } from '../data/translations';
 import { ATTRIBUTE_PERICIAS } from '../data/gameData';
-import TechniquesPage from './TechniquesPage';
-import ProgressionPage from './ProgressionPage';
-import SheetNavigation from './SheetNavigation';
-import EditableStat from './EditableStat';
-import Modal from './Modal';
-import TechniqueCreatorForm from './TechniqueCreatorForm';
-import ConfirmationModal from './ConfirmationModal';
-import AttributeRollModal from './AttributeRollModal';
+import TechniquesPage from '../components/character-sheet/TechniquesPage';
+import ProgressionPage from '../components/character-sheet/ProgressionPage';
+import SheetNavigation from '../components/character-sheet/SheetNavigation';
+import EditableStat from '../components/ui/EditableStat';
+import Modal from '../components/ui/Modal';
+import TechniqueCreatorForm from '../components/character-sheet/TechniqueCreatorForm';
+import ConfirmationModal from '../components/ui/ConfirmationModal';
+import AttributeRollModal from '../components/character-sheet/AttributeRollModal';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
-function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification }) {
+function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification, signOut, addRollToHistory }) {
   const clan = CLANS_DATA[character.clanId];
   const [activeTab, setActiveTab] = useState('sheet');
   const [editingTechnique, setEditingTechnique] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isStatusCardFlipped, setIsStatusCardFlipped] = useState(false);
   const [rollModalData, setRollModalData] = useState(null);
   
   const isFormModalOpen = isCreating || editingTechnique !== null;
@@ -85,7 +84,7 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
 
   const RightColumnContent = () => {
     if (activeTab === 'techniques') {
-      return <TechniquesPage character={character} onDeleteTechnique={handleTechniqueDelete} openCreateModal={openCreateModal} openEditModal={openEditModal} />;
+      return (<TechniquesPage character={character} onDeleteTechnique={handleTechniqueDelete} openCreateModal={openCreateModal} openEditModal={openEditModal} />);
     }
     if (activeTab === 'progression') {
       return <ProgressionPage character={character} onTrain={handleProgressionChange} showNotification={showNotification} />;
@@ -175,6 +174,12 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
         onClose={closeRollModal}
         attributeName={rollModalData ? ATTRIBUTE_TRANSLATIONS[rollModalData.key] : ''}
         attributeValue={rollModalData ? rollModalData.value : 0}
+        onRollComplete={(result) => addRollToHistory({
+          name: `Teste de ${ATTRIBUTE_TRANSLATIONS[rollModalData.key]}`,
+          roll: result.roll,
+          modifier: rollModalData.value,
+          total: result.total
+        })}
       />
     </div>
   );
