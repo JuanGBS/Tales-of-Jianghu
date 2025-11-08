@@ -8,6 +8,8 @@ import AuthPage from './pages/AuthPage.jsx';
 import RollHistoryDrawer from './components/ui/RollHistoryDrawer.jsx';
 import ImageSelectionTray from './components/ui/ImageSelectionTray.jsx';
 import ProficiencyChoiceModal from './components/character-sheet/ProficiencyChoiceModal.jsx';
+import { BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from './data/gameData.js';
+
 
 const mapToCamelCase = (data) => {
   if (!data) return null;
@@ -119,7 +121,6 @@ function AppContent() {
       ])
       .select()
       .single();
-
     if (error) {
       console.error("Erro ao criar personagem:", error);
       showNotification("Falha ao criar personagem.", "error");
@@ -156,7 +157,6 @@ function AppContent() {
       techniques: updatedCharacter.techniques,
       proficient_pericias: updatedCharacter.proficientPericias,
     };
-
     const { data, error } = await supabase.from('characters').update(dataToUpdate).eq('id', updatedCharacter.id).select().single();
     if (error) {
       console.error("Erro ao atualizar personagem:", error);
@@ -164,14 +164,30 @@ function AppContent() {
     } else {
       const updatedData = mapToCamelCase(data);
       setCharacter(updatedData);
-
-      // Gatilho para abrir o modal de escolha
       if (updatedData.cultivationStage === 1 && !updatedData.proficientAttribute) {
         setIsProficiencyModalOpen(true);
       }
     }
   };
   
+  const handleProgressionChange = (updates) => {
+    if (updates.type === 'attribute_increase' && updates.attribute) {
+      const attrToUpdate = updates.attribute;
+      const newAttributes = {
+        ...character.attributes,
+        [attrToUpdate]: character.attributes[attrToUpdate] + 1,
+      };
+      const newCharacterState = { ...character, attributes: newAttributes };
+      handleUpdateCharacter(newCharacterState);
+    } else {
+      const newCharacterState = { ...character, ...updates };
+      if (newCharacterState.bodyRefinementLevel >= BODY_REFINEMENT_LEVELS.length) return;
+      if (newCharacterState.cultivationStage >= CULTIVATION_STAGES.length) return;
+      if (newCharacterState.masteryLevel >= MASTERY_LEVELS.length) return;
+      handleUpdateCharacter(newCharacterState);
+    }
+  };
+
   const handleImageUpload = async (file) => {
     if (!user) return;
     showNotification("Enviando imagem...", "success");
@@ -219,6 +235,7 @@ function AppContent() {
             showNotification={showNotification}
             addRollToHistory={addRollToHistory}
             onOpenImageTray={handleOpenImageTray}
+            onTrain={handleProgressionChange}
           />
         ) : (
           <SheetManager onSave={handleSaveCharacter} />

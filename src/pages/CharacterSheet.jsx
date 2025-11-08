@@ -14,7 +14,7 @@ import ConfirmationModal from '../components/ui/ConfirmationModal';
 import AttributeRollModal from '../components/character-sheet/AttributeRollModal';
 import { PhotoIcon, StarIcon } from '@heroicons/react/24/solid';
 
-function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification, addRollToHistory, onOpenImageTray }) {
+function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification, addRollToHistory, onOpenImageTray, onTrain }) {
   const clan = CLANS_DATA[character.clanId];
   const [activeTab, setActiveTab] = useState('sheet');
   const [editingTechnique, setEditingTechnique] = useState(null);
@@ -44,11 +44,6 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
   const handleTechniqueDelete = (indexToDelete) => {
     const updatedTechniques = (character.techniques || []).filter((_, index) => index !== indexToDelete);
     onUpdateCharacter({ ...character, techniques: updatedTechniques });
-  };
-
-  const handleProgressionChange = (updates) => {
-    const newCharacterState = { ...character, ...updates };
-    onUpdateCharacter(newCharacterState);
   };
 
   const openCreateModal = () => setIsCreating(true);
@@ -83,7 +78,7 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
       return (<TechniquesPage character={character} onDeleteTechnique={handleTechniqueDelete} openCreateModal={openCreateModal} openEditModal={openEditModal} />);
     }
     if (activeTab === 'progression') {
-      return <ProgressionPage character={character} onTrain={handleProgressionChange} showNotification={showNotification} />;
+      return <ProgressionPage character={character} onTrain={onTrain} showNotification={showNotification} />;
     }
     return (
       <div className="w-full self-start flex flex-col space-y-6">
@@ -128,7 +123,6 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
               {Object.entries(character.attributes).map(([key, value]) => {
                 const isProficient = character.proficientAttribute === key;
                 const periciaBonus = isProficient ? value * 2 : value;
-
                 return (
                   <div key={key} className="relative group">
                     <button
