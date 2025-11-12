@@ -1,5 +1,9 @@
+// ARQUIVO: src\pages\CharacterSheet.jsx
+
 import React, { useState, useRef } from 'react';
 import { CLANS_DATA } from '../data/clans';
+// --- ALTERADO: Importar os tipos de armadura ---
+import { ARMOR_TYPES } from '../data/armorTypes'; 
 import { FIGHTING_STYLES, BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from '../data/gameData';
 import { INNATE_BODIES } from '../data/innateBodies';
 import characterArt from '../assets/character-art.png';
@@ -7,7 +11,7 @@ import { ATTRIBUTE_TRANSLATIONS } from '../data/translations';
 import { ATTRIBUTE_PERICIAS } from '../data/gameData';
 import TechniquesPage from '../components/character-sheet/TechniquesPage';
 import ProgressionPage from '../components/character-sheet/ProgressionPage';
-import InventoryPage from './InventoryPage'; // Importa a nova página
+import InventoryPage from './InventoryPage';
 import SheetNavigation from '../components/character-sheet/SheetNavigation';
 import EditableStat from '../components/ui/EditableStat';
 import Modal from '../components/ui/Modal';
@@ -31,7 +35,15 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
   const isFormModalOpen = isCreating || editingTechnique !== null;
   const anyModalIsOpen = isFormModalOpen || isDeleteModalOpen || rollModalData !== null;
 
-  // Cálculos de Status
+  // --- ALTERADO: Lógica de Cálculo de Status Refatorada ---
+
+  // 1. Encontrar a armadura equipada
+  const inventory = character.inventory || { armor: { type: 'none' } };
+  const armorType = inventory.armor?.type || 'none';
+  const selectedArmor = ARMOR_TYPES.find(a => a.id === armorType) || ARMOR_TYPES.find(a => a.id === 'none');
+  const agilityPenalty = selectedArmor.effects.agilityPenalty;
+  
+  // 2. Calcular PV Máximo
   const initialClanHp = CLANS_DATA[character.clanId]?.baseHp || 0;
   const innateHpBonus = innateBodyData.effects?.stat_bonus?.baseHp || 0;
   const effectiveBaseHp = initialClanHp + innateHpBonus;
@@ -39,12 +51,27 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
   const refinementMultiplierBonus = innateBodyData.effects?.body_refinement_multiplier_bonus || 0;
   const finalRefinementMultiplier = (refinementLevel?.multiplier || 1) + (refinementLevel && refinementLevel.id > 0 ? refinementMultiplierBonus : 0);
   const displayMaxHp = Math.floor(effectiveBaseHp * finalRefinementMultiplier) + character.attributes.vigor;
+
+  // 3. Calcular Chi Máximo
   const baseChi = 5 + character.attributes.discipline;
   const cultivationMultiplier = CULTIVATION_STAGES.find(s => s.id === (character.cultivationStage || 0))?.multiplier || 1;
   const masteryLevelValue = character.masteryLevel || 0;
   const masteryFlatBonus = MASTERY_LEVELS.find(l => l.id === masteryLevelValue)?.bonus || 0;
   const innateChiPerMastery = innateBodyData.effects?.max_chi_per_mastery || 0;
   const displayMaxChi = Math.floor(baseChi * cultivationMultiplier) + masteryFlatBonus + (masteryLevelValue * innateChiPerMastery);
+
+  // 4. Calcular Classe de Armadura (CA)
+  const agilityValue = character.attributes.agility;
+  let displayArmorClass;
+  if (selectedArmor.effects.baseArmorClass !== null) {
+    // Para armaduras Média e Pesada
+    displayArmorClass = selectedArmor.effects.baseArmorClass + agilityValue + agilityPenalty;
+  } else {
+    // Para "Nenhuma" armadura
+    displayArmorClass = 10 + agilityValue;
+  }
+  
+  // Fim da Lógica de Cálculo de Status
 
   // Manipuladores de estado
   const handleStatChange = (statKey, newValue) => {
@@ -101,7 +128,6 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
     if (activeTab === 'techniques') {
       return (<TechniquesPage character={character} onDeleteTechnique={handleTechniqueDelete} openCreateModal={openCreateModal} openEditModal={openEditModal} />);
     }
-    // Adiciona a condição para renderizar a página de inventário
     if (activeTab === 'inventory') {
       return <InventoryPage character={character} onUpdateCharacter={onUpdateCharacter} />;
     }
@@ -126,7 +152,8 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
             <div className="bg-gray-100 p-4 rounded-lg flex justify-around text-center">
               <EditableStat label="PV" currentValue={character.stats.currentHp} maxValue={displayMaxHp} onSave={(newValue) => handleStatChange('currentHp', newValue)} colorClass="text-green-600" />
               <EditableStat label="Chi" currentValue={character.stats.currentChi} maxValue={displayMaxChi} onSave={(newValue) => handleStatChange('currentChi', newValue)} colorClass="text-blue-500" />
-              <EditableStat label="CA" currentValue={character.stats.armorClass} onSave={(newValue) => handleStatChange('armorClass', newValue)} colorClass="text-red-600" />
+              {/* --- ALTERADO: Usa a nova variável para a CA --- */}
+              <EditableStat label="CA" currentValue={displayArmorClass} onSave={(newValue) => { /* Opcional: decidir se CA pode ser editada manualmente */ }} colorClass="text-red-600" />
             </div>
           </div>
           <button onClick={() => setIsDeleteModalOpen(true)} className="w-full text-center text-gray-500 hover:text-red-600 font-semibold pt-4 mt-auto">
@@ -151,7 +178,13 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
             <div className="space-y-2 mt-3">
               {Object.entries(character.attributes).map(([key, value]) => {
                 const isProficient = character.proficientAttribute === key;
-                const attributeBonus = isProficient ? value * 2 : value;
+                let attributeBonus = isProficient ? value * 2 : value;
+
+                // --- ALTERADO: Aplica a penalidade de agilidade para testes ---
+                if (key === 'agility') {
+                  attributeBonus += agilityPenalty;
+                }
+
                 return (
                   <div 
                     key={key} 
@@ -236,7 +269,7 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
       {!anyModalIsOpen && <SheetNavigation activeTab={activeTab} setActiveTab={setActiveTab} />}
 
       <Modal isOpen={isFormModalOpen} onClose={closeFormModal}><TechniqueCreatorForm onSave={(data) => { handleTechniquesUpdate(data); closeFormModal(); }} onCancel={closeFormModal} initialData={editingTechnique?.technique} /></Modal>
-      <ConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleConfirmDelete} title="Apagar Personagem?" message="Esta ação é permanente. Deseja apagar esta ficha?" />
+      <ConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleConfirmDelete} title="Apagar Personagem?" message="Esta aÃ§Ã£o Ã© permanente. Deseja apagar esta ficha?" />
       
       <RollTestModal 
         isOpen={rollModalData !== null} 
