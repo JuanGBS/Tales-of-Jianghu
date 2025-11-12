@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CLANS_DATA } from '../data/clans';
 import { FIGHTING_STYLES, BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from '../data/gameData';
 import { INNATE_BODIES } from '../data/innateBodies';
@@ -7,12 +7,13 @@ import { ATTRIBUTE_TRANSLATIONS } from '../data/translations';
 import { ATTRIBUTE_PERICIAS } from '../data/gameData';
 import TechniquesPage from '../components/character-sheet/TechniquesPage';
 import ProgressionPage from '../components/character-sheet/ProgressionPage';
+import InventoryPage from './InventoryPage'; // Importa a nova página
 import SheetNavigation from '../components/character-sheet/SheetNavigation';
 import EditableStat from '../components/ui/EditableStat';
 import Modal from '../components/ui/Modal';
 import TechniqueCreatorForm from '../components/character-sheet/TechniqueCreatorForm';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
-import AttributeRollModal from '../components/character-sheet/AttributeRollModal';
+import RollTestModal from '../components/character-sheet/RollTestModal';
 import { PhotoIcon, StarIcon } from '@heroicons/react/24/solid';
 
 function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification, addRollToHistory, onOpenImageTray, onTrain }) {
@@ -24,37 +25,28 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [rollModalData, setRollModalData] = useState(null);
+  const [hoveredAttribute, setHoveredAttribute] = useState(null);
+  const hoverTimeoutRef = useRef(null);
   
   const isFormModalOpen = isCreating || editingTechnique !== null;
   const anyModalIsOpen = isFormModalOpen || isDeleteModalOpen || rollModalData !== null;
 
-  // --- LÓGICA DE CÁLCULO DINÂMICO TOTALMENTE CORRIGIDA ---
-
-  // 1. CÁLCULO DE PONTOS DE VIDA (PV)
-  // Pega o PV base original diretamente dos dados do clã, ignorando o que está salvo.
+  // Cálculos de Status
   const initialClanHp = CLANS_DATA[character.clanId]?.baseHp || 0;
   const innateHpBonus = innateBodyData.effects?.stat_bonus?.baseHp || 0;
-  // Calcula a base de vida real do personagem.
   const effectiveBaseHp = initialClanHp + innateHpBonus;
-
-  // Calcula o multiplicador de refino, incluindo bônus inatos.
   const refinementLevel = BODY_REFINEMENT_LEVELS.find(l => l.id === (character.bodyRefinementLevel || 0));
   const refinementMultiplierBonus = innateBodyData.effects?.body_refinement_multiplier_bonus || 0;
   const finalRefinementMultiplier = (refinementLevel?.multiplier || 1) + (refinementLevel && refinementLevel.id > 0 ? refinementMultiplierBonus : 0);
-  
-  // Calcula o PV máximo final. Fórmula: (Base Real * Multiplicador) + Vigor
   const displayMaxHp = Math.floor(effectiveBaseHp * finalRefinementMultiplier) + character.attributes.vigor;
-
-  // 2. CÁLCULO DE PONTOS DE CHI
   const baseChi = 5 + character.attributes.discipline;
   const cultivationMultiplier = CULTIVATION_STAGES.find(s => s.id === (character.cultivationStage || 0))?.multiplier || 1;
   const masteryLevelValue = character.masteryLevel || 0;
   const masteryFlatBonus = MASTERY_LEVELS.find(l => l.id === masteryLevelValue)?.bonus || 0;
   const innateChiPerMastery = innateBodyData.effects?.max_chi_per_mastery || 0;
-  
   const displayMaxChi = Math.floor(baseChi * cultivationMultiplier) + masteryFlatBonus + (masteryLevelValue * innateChiPerMastery);
 
-
+  // Manipuladores de estado
   const handleStatChange = (statKey, newValue) => {
     const validatedValue = Math.max(0, newValue);
     const updatedCharacter = { ...character, stats: { ...character.stats, [statKey]: validatedValue } };
@@ -88,15 +80,30 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
     setIsDeleteModalOpen(false);
   };
   
-  const openRollModal = (attributeKey, attributeValue, isProficient) => {
-    setRollModalData({ key: attributeKey, value: attributeValue, proficient: isProficient });
+  const openRollModal = (data) => {
+    setRollModalData(data);
   };
   
   const closeRollModal = () => setRollModalData(null);
 
+  const handleMouseEnter = (attributeKey) => {
+    clearTimeout(hoverTimeoutRef.current);
+    setHoveredAttribute(attributeKey);
+  };
+
+  const handleMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredAttribute(null);
+    }, 200);
+  };
+
   const RightColumnContent = () => {
     if (activeTab === 'techniques') {
       return (<TechniquesPage character={character} onDeleteTechnique={handleTechniqueDelete} openCreateModal={openCreateModal} openEditModal={openEditModal} />);
+    }
+    // Adiciona a condição para renderizar a página de inventário
+    if (activeTab === 'inventory') {
+      return <InventoryPage character={character} onUpdateCharacter={onUpdateCharacter} />;
     }
     if (activeTab === 'progression') {
       return <ProgressionPage character={character} onTrain={onTrain} showNotification={showNotification} />;
@@ -146,9 +153,18 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
                 const isProficient = character.proficientAttribute === key;
                 const attributeBonus = isProficient ? value * 2 : value;
                 return (
-                  <div key={key} className="relative group">
+                  <div 
+                    key={key} 
+                    className="relative"
+                    onMouseEnter={() => handleMouseEnter(key)}
+                    onMouseLeave={handleMouseLeave}
+                  >
                     <button
-                      onClick={() => openRollModal(key, value, isProficient)}
+                      onClick={() => openRollModal({
+                        title: `Teste de ${ATTRIBUTE_TRANSLATIONS[key]}`,
+                        modifier: attributeBonus,
+                        modifierLabel: ATTRIBUTE_TRANSLATIONS[key]
+                      })}
                       className={`w-full flex justify-between items-center p-3 rounded-lg transition-colors ${
                         isProficient ? 'bg-purple-100 hover:bg-purple-200' : 'bg-gray-100 hover:bg-gray-200'
                       }`}
@@ -159,19 +175,33 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
                       </div>
                       <span className="text-2xl font-bold text-purple-700">{value}</span>
                     </button>
-                    <div className="absolute left-full top-0 ml-4 w-64 bg-white p-4 rounded-lg shadow-xl border z-[60] opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
+                    <div 
+                      className={`absolute left-full top-0 ml-4 w-64 bg-white p-4 rounded-lg shadow-xl border z-[60] transition-all duration-200 ${
+                        hoveredAttribute === key 
+                          ? 'opacity-100 scale-100 pointer-events-auto' 
+                          : 'opacity-0 scale-95 pointer-events-none'
+                      }`}
+                    >
                       <h5 className="font-bold text-brand-text border-b pb-2 mb-2">Perícias de {ATTRIBUTE_TRANSLATIONS[key]}</h5>
                       <div className="space-y-1 text-sm">
                         {(ATTRIBUTE_PERICIAS[key] || []).map(periciaName => {
                           const skillBonusFromInnate = innateBodyData.effects?.skill_bonus?.[periciaName] || 0;
                           const totalBonus = attributeBonus + skillBonusFromInnate;
                           return (
-                            <div key={periciaName} className="flex justify-between">
+                            <button 
+                              key={periciaName} 
+                              onClick={() => openRollModal({
+                                title: `Teste de ${periciaName}`,
+                                modifier: totalBonus,
+                                modifierLabel: 'Bônus Total'
+                              })}
+                              className="flex justify-between w-full text-left px-2 py-1 rounded hover:bg-gray-100"
+                            >
                               <span className="text-gray-600">{periciaName}</span>
                               <span className="font-bold text-purple-700">
                                 {totalBonus >= 0 ? '+' : ''}{totalBonus}
                               </span>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
@@ -208,18 +238,20 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
       <Modal isOpen={isFormModalOpen} onClose={closeFormModal}><TechniqueCreatorForm onSave={(data) => { handleTechniquesUpdate(data); closeFormModal(); }} onCancel={closeFormModal} initialData={editingTechnique?.technique} /></Modal>
       <ConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleConfirmDelete} title="Apagar Personagem?" message="Esta ação é permanente. Deseja apagar esta ficha?" />
       
-      <AttributeRollModal 
+      <RollTestModal 
         isOpen={rollModalData !== null} 
         onClose={closeRollModal} 
-        attributeName={rollModalData ? ATTRIBUTE_TRANSLATIONS[rollModalData.key] : ''} 
-        attributeValue={rollModalData ? rollModalData.value : 0}
-        isProficient={rollModalData ? rollModalData.proficient : false}
-        onRollComplete={(result) => addRollToHistory({
-          name: `Teste de ${ATTRIBUTE_TRANSLATIONS[rollModalData.key]}`, 
-          roll: result.roll, 
-          modifier: result.modifier, 
-          total: result.total
-        })}
+        title={rollModalData?.title || ''}
+        modifier={rollModalData?.modifier || 0}
+        modifierLabel={rollModalData?.modifierLabel || ''}
+        onRollComplete={(result) => {
+          addRollToHistory({
+            name: rollModalData.title, 
+            roll: result.roll, 
+            modifier: result.modifier, 
+            total: result.total
+          });
+        }}
       />
     </div>
   );

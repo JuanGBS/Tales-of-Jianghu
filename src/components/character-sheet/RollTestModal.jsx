@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '../ui/Modal';
-import { CubeIcon } from '@heroicons/react/24/solid'; // Ícone de dado
+import { CubeIcon } from '@heroicons/react/24/solid';
 
 const getRandomRoll = () => Math.floor(Math.random() * 20) + 1;
 
-function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, onRollComplete, isProficient }) {
+function RollTestModal({ isOpen, onClose, title, modifier, modifierLabel, onRollComplete }) {
   const [rollResult, setRollResult] = useState(null);
   const [isRolling, setIsRolling] = useState(false);
   const [displayNumber, setDisplayNumber] = useState(null);
@@ -13,7 +13,6 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
     if (!isRolling) return;
     const timeouts = [];
     const finalRoll = rollResult.roll;
-    // Animação de rolagem
     for (let i = 0; i < 8; i++) {
       timeouts.push(setTimeout(() => setDisplayNumber(getRandomRoll()), i * 50));
     }
@@ -46,8 +45,7 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
     } else {
       finalRoll = roll1;
     }
-    const modifier = isProficient ? attributeValue * 2 : attributeValue;
-
+    
     setRollResult({
       roll: finalRoll,
       rolls: rolls,
@@ -65,19 +63,15 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
     setDisplayNumber(null);
     onClose();
   };
-  
-  // A variável 'displayModifier' continua existindo, pois é usada no cálculo do 'modifier'
-  const displayModifier = isProficient ? attributeValue * 2 : attributeValue;
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
       <div className="text-center p-4">
         {rollResult ? (
-          // --- TELA DE RESULTADO (PÓS-ROLAGEM) ---
           <div>
             <div className="flex flex-col items-center justify-center mb-4">
               <CubeIcon className="h-10 w-10 text-purple-600 mb-2" />
-              <h3 className="text-2xl font-bold text-brand-text">Teste de {attributeName}</h3>
+              <h3 className="text-2xl font-bold text-brand-text">{title}</h3>
             </div>
             <div className="my-6 flex justify-center items-baseline space-x-4 text-gray-700 text-lg">
               <div className="flex flex-col items-center">
@@ -91,7 +85,7 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
               <span className="text-3xl font-light text-gray-400">+</span>
               <div className="flex flex-col items-center">
                 <strong className="text-purple-700 text-5xl">{rollResult.modifier}</strong>
-                <span className="text-xs text-gray-500">{attributeName}</span>
+                <span className="text-xs text-gray-500">{modifierLabel}</span>
               </div>
               <span className="text-3xl font-light text-gray-400">=</span>
               <div className="flex flex-col items-center">
@@ -110,14 +104,12 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
             </button>
           </div>
         ) : (
-          // --- TELA DE OPÇÕES (PRÉ-ROLAGEM) ---
           <div>
             <div className="flex flex-col items-center justify-center mb-6">
               <CubeIcon className="h-12 w-12 text-purple-600 mb-2" />
-              <h3 className="text-2xl font-bold text-brand-text">Teste de {attributeName}</h3>
-              <p className="text-gray-500 mt-1">Role um dado e some seu bônus de +{displayModifier}.</p>
+              <h3 className="text-2xl font-bold text-brand-text">{title}</h3>
+              <p className="text-gray-500 mt-1">Role um dado e some seu bônus de +{modifier}.</p>
             </div>
-
             <div className="space-y-4">
               <button
                 onClick={() => handleRoll('normal')}
@@ -125,13 +117,11 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
               >
                 Rolar D20
               </button>
-              
               <div className="flex items-center text-gray-400 pt-2">
                 <div className="flex-grow border-t border-gray-300"></div>
                 <span className="flex-shrink mx-4 text-xs font-semibold">OU ROLAR COM</span>
                 <div className="flex-grow border-t border-gray-300"></div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <button 
                   onClick={() => handleRoll('disadvantage')} 
@@ -154,4 +144,4 @@ function AttributeRollModal({ isOpen, onClose, attributeName, attributeValue, on
   );
 }
 
-export default AttributeRollModal;
+export default RollTestModal;

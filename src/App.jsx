@@ -10,6 +10,12 @@ import ImageSelectionTray from './components/ui/ImageSelectionTray.jsx';
 import ProficiencyChoiceModal from './components/character-sheet/ProficiencyChoiceModal.jsx';
 import { BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from './data/gameData.js';
 
+const defaultInventory = {
+  weapon: { name: '', damage: '', attribute: '', properties: '' },
+  armor: { type: 'none', properties: '' },
+  general: [],
+  money: 0
+};
 
 const mapToCamelCase = (data) => {
   if (!data) return null;
@@ -29,6 +35,8 @@ const mapToCamelCase = (data) => {
     stats: data.stats,
     techniques: data.techniques || [],
     proficientPericias: data.proficient_pericias || [],
+    // Adiciona o inventário, com um valor padrão para personagens antigos
+    inventory: data.inventory || defaultInventory,
     createdAt: data.created_at,
   };
 };
@@ -119,6 +127,7 @@ function AppContent() {
           cultivation_stage: characterData.cultivationStage,
           mastery_level: characterData.masteryLevel,
           techniques: characterData.techniques,
+          inventory: defaultInventory,
         }
       ])
       .select()
@@ -159,6 +168,7 @@ function AppContent() {
       stats: updatedCharacter.stats,
       techniques: updatedCharacter.techniques,
       proficient_pericias: updatedCharacter.proficientPericias,
+      inventory: updatedCharacter.inventory,
     };
     const { data, error } = await supabase.from('characters').update(dataToUpdate).eq('id', updatedCharacter.id).select().single();
     if (error) {
@@ -220,7 +230,6 @@ function AppContent() {
     showNotification(`Proficiência em ${attribute.charAt(0).toUpperCase() + attribute.slice(1)} adquirida!`, "success");
   };
 
-  // --- CÓDIGO CORRIGIDO ---
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
   };
