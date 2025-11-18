@@ -10,6 +10,8 @@ export const ACTION_TYPES = [
   'Ação Maior',
   'Ação Menor',
   'Reação',
+  'Movimento',
+  'Preparar Ação',
   'Nenhuma',
 ];
 
@@ -26,8 +28,8 @@ export const ATTRIBUTE_PERICIAS = {
   vigor: ['Resistência', 'Atletismo'],
   agility: ['Acrobacia', 'Furtividade', 'Prestidigitaçao', 'Reflexo'],
   discipline: ['Meditação', 'Força de Vontade', 'Controle do Chi'],
-  comprehension: ['Conhecimento do Jianghu', 'Análise Tática', 'Percepção', 'Estratégia'],
-  presence: ['Persuasão', 'Liderança', 'Performance', 'Etiqueta Social', 'Intimidação', 'Intuição'],
+  comprehension: ['Conhecimento do Jianghu', 'Análise Tática', 'Percepção', 'Estratégia', 'Intuição'],
+  presence: ['Persuasão', 'Liderança', 'Performance', 'Etiqueta Social', 'Intimidação'],
 };
 
 export const BODY_REFINEMENT_LEVELS = [
@@ -53,4 +55,56 @@ export const MASTERY_LEVELS = [
   { id: 1, name: 'Nível Inicial', description: 'Acesso a novas técnicas do estágio.', bonus: 0 },
   { id: 2, name: 'Nível Intermediário', description: 'Aumenta Pontos de Chi Máximos em +5.', bonus: 5 },
   { id: 3, name: 'Nível Especialista', description: 'Ganha um ponto para aumentar um atributo.', bonus: 0 }, 
+];
+
+export const COMBAT_MANEUVERS = [
+  { 
+    id: 'disarm', 
+    name: 'Desarmar', 
+    description: 'Teste de Vigor para o alvo manter a arma.',
+    attribute: 'vigor',
+  },
+  { 
+    id: 'push', 
+    name: 'Empurrar', 
+    description: 'Move o alvo 4,5 metros.',
+    attribute: 'vigor',
+  },
+  { 
+    id: 'trip', 
+    name: 'Derrubar', 
+    description: 'O alvo cai e tem desvantagem nos ataques.',
+    attribute: 'agility',
+  },
+];
+
+export const MINOR_ACTIONS = [
+  {
+    id: 'concentrate',
+    name: 'Concentração',
+    description: 'Manter técnicas que exigem foco.',
+    rollable: true,
+    skill: 'Controle do Chi',
+    attribute: 'discipline'
+  },
+  {
+    id: 'focused_attack',
+    name: 'Ataque Concentrado',
+    description: 'Sacrifica a Ação Menor para ganhar Vantagem no próximo ataque.',
+    rollable: false,
+  },
+  {
+    id: 'interact',
+    name: 'Interagir com o Ambiente',
+    description: 'Ações rápidas e simples como abrir uma porta ou pegar um item.',
+    rollable: false,
+  },
+];
+
+export const LIGHT_WEAPONS = [
+  'Jian (Espada Reta)',
+  'Dao Curto',
+  'Fio de Aço',
+  'Punhais Duplos',
+  'Ganchos de Tigre',
 ];

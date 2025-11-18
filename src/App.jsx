@@ -9,6 +9,8 @@ import RollHistoryDrawer from './components/ui/RollHistoryDrawer.jsx';
 import ImageSelectionTray from './components/ui/ImageSelectionTray.jsx';
 import ProficiencyChoiceModal from './components/character-sheet/ProficiencyChoiceModal.jsx';
 import { BODY_REFINEMENT_LEVELS, CULTIVATION_STAGES, MASTERY_LEVELS } from './data/gameData.js';
+import GameMasterPanel from './pages/GameMasterPanel.jsx';
+import InitiativeTracker from './components/combat/InitiativeTracker.jsx';
 
 const defaultInventory = {
   weapon: { name: '', damage: '', attribute: '', properties: '' },
@@ -35,14 +37,13 @@ const mapToCamelCase = (data) => {
     stats: data.stats,
     techniques: data.techniques || [],
     proficientPericias: data.proficient_pericias || [],
-    // Adiciona o inventário, com um valor padrão para personagens antigos
     inventory: data.inventory || defaultInventory,
     createdAt: data.created_at,
   };
 };
 
 function AppContent() {
-  const { user, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const [character, setCharacter] = useState(null);
   const [characterLoading, setCharacterLoading] = useState(true);
   const [notification, setNotification] = useState(null);
@@ -51,48 +52,88 @@ function AppContent() {
   const [isImageTrayOpen, setIsImageTrayOpen] = useState(false);
   const [userImages, setUserImages] = useState([]);
   const [isProficiencyModalOpen, setIsProficiencyModalOpen] = useState(false);
+  const [combatData, setCombatData] = useState(null);
 
-  const fetchUserImages = async () => {
-    if (!user) return;
-    const { data, error } = await supabase.storage
-      .from('character-images')
-      .list(`public/${user.id}`, {
-        limit: 100,
-        sortBy: { column: 'created_at', order: 'desc' },
-      });
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
+
+  const handleNextTurn = async () => {
+    if (!combatData || profile?.role !== 'gm') return;
+    const nextIndex = (combatData.current_turn_index + 1) % combatData.turn_order.length;
+    const { error } = await supabase
+      .from('combat')
+      .update({ current_turn_index: nextIndex })
+      .eq('id', combatData.id);
     if (error) {
-      console.error('Erro ao listar imagens:', error);
+      showNotification("Erro ao avançar o turno.", "error");
+      console.error("Erro ao avançar o turno:", error);
+    }
+  };
+  
+  const handleEndPlayerTurn = async () => {
+    if (!combatData || !character) return;
+    const currentTurnCharacterId = combatData.turn_order[combatData.current_turn_index].character_id;
+    if (character.id !== currentTurnCharacterId) {
+      showNotification("Não é o seu turno para finalizar!", "error");
       return;
     }
-    const imagesWithUrls = data.map(file => ({
-      ...file,
-      publicURL: supabase.storage.from('character-images').getPublicUrl(`public/${user.id}/${file.name}`).data.publicUrl,
-    }));
-    setUserImages(imagesWithUrls);
+    const nextIndex = (combatData.current_turn_index + 1) % combatData.turn_order.length;
+    const { error } = await supabase
+      .from('combat')
+      .update({ current_turn_index: nextIndex })
+      .eq('id', combatData.id);
+    if (error) {
+      showNotification("Erro ao finalizar o turno.", "error");
+      console.error("Erro ao finalizar o turno:", error);
+    }
   };
 
-  const handleOpenImageTray = () => {
-    fetchUserImages();
-    setIsImageTrayOpen(true);
+  const handleEndCombat = async () => {
+    if (!combatData || profile?.role !== 'gm') return;
+    const { error } = await supabase
+      .from('combat')
+      .update({ is_active: false })
+      .eq('id', combatData.id);
+    if (error) {
+      showNotification("Erro ao encerrar combate.", "error");
+      console.error("Erro ao encerrar combate:", error);
+    } else {
+      showNotification("Combate encerrado.", "success");
+    }
   };
 
   useEffect(() => {
-    localStorage.setItem('rollHistory', JSON.stringify(rollHistory));
-  }, [rollHistory]);
+    if (!user) return;
 
-  const addRollToHistory = (rollData) => {
-    const newHistory = [rollData, ...rollHistory].slice(0, 15);
-    setRollHistory(newHistory);
-    setIsHistoryOpen(true);
-  };
-
-  const handleClearHistory = () => {
-    setRollHistory([]);
-    showNotification("Histórico de rolagens limpo!", "success");
-  };
+    const fetchActiveCombat = async () => {
+      const { data, error } = await supabase
+        .from('combat')
+        .select('*')
+        .eq('is_active', true)
+        .single();
+      if (error && error.code !== 'PGRST116') console.error("Erro ao buscar combate ativo:", error);
+      setCombatData(data);
+    };
+    
+    fetchActiveCombat();
+    
+    const channel = supabase
+      .channel('public:combat')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'combat' }, 
+      (payload) => {
+        console.log('Mudança no combate recebida!', payload);
+        fetchActiveCombat();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   useEffect(() => {
-    if (user) {
+    if (user && profile && profile.role !== 'gm') {
       const fetchCharacter = async () => {
         setCharacterLoading(true);
         const { data, error } = await supabase.from('characters').select('*').eq('user_id', user.id).single();
@@ -108,7 +149,7 @@ function AppContent() {
       setCharacterLoading(false);
       setCharacter(null);
     }
-  }, [user]);
+  }, [user, profile]);
 
   const handleSaveCharacter = async (characterData) => {
     const { data, error } = await supabase
@@ -230,37 +271,72 @@ function AppContent() {
     showNotification(`Proficiência em ${attribute.charAt(0).toUpperCase() + attribute.slice(1)} adquirida!`, "success");
   };
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ message, type });
+  const addRollToHistory = (rollData) => {
+    const newHistory = [rollData, ...rollHistory].slice(0, 15);
+    setRollHistory(newHistory);
+    setIsHistoryOpen(true);
   };
 
-  if (isLoading || characterLoading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
-  if (!user) return <AuthPage />;
-  
+  const handleClearHistory = () => {
+    setRollHistory([]);
+    showNotification("Histórico de rolagens limpo!", "success");
+  };
+
+  const handleOpenImageTray = () => {
+    fetchUserImages();
+    setIsImageTrayOpen(true);
+  };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <div className="relative min-h-screen">
-      <main>
-        {character ? (
-          <CharacterSheet 
-            character={character} 
-            onDelete={handleDeleteCharacter} 
-            onUpdateCharacter={handleUpdateCharacter}
-            showNotification={showNotification}
-            addRollToHistory={addRollToHistory}
-            onOpenImageTray={handleOpenImageTray}
-            onTrain={handleProgressionChange}
-          />
-        ) : (
-          <SheetManager onSave={handleSaveCharacter} />
-        )}
-      </main>
+      {combatData && combatData.is_active && (
+        <InitiativeTracker turnOrder={combatData.turn_order} currentIndex={combatData.current_turn_index} />
+      )}
+      
+      {profile?.role === 'gm' ? (
+        <GameMasterPanel 
+          combatData={combatData}
+          onNextTurn={handleNextTurn}
+          onEndCombat={handleEndCombat}
+        />
+      ) : (
+        <main>
+          {characterLoading ? (
+            <div className="min-h-screen flex items-center justify-center">Carregando Ficha...</div>
+          ) : (
+            character ? (
+              <CharacterSheet 
+                character={character} 
+                onDelete={handleDeleteCharacter} 
+                onUpdateCharacter={handleUpdateCharacter}
+                showNotification={showNotification}
+                addRollToHistory={addRollToHistory}
+                onOpenImageTray={handleOpenImageTray}
+                onTrain={handleProgressionChange}
+                combatData={combatData}
+                onEndTurn={handleEndPlayerTurn}
+              />
+            ) : (
+              <SheetManager onSave={handleSaveCharacter} />
+            )
+          )}
+        </main>
+      )}
 
-      {character && (
+      {(character || profile?.role === 'gm') && (
         <RollHistoryDrawer 
-          history={rollHistory}
-          isOpen={isHistoryOpen}
-          onToggle={() => setIsHistoryOpen(!isHistoryOpen)}
-          onClearHistory={handleClearHistory}
+          history={rollHistory} 
+          isOpen={isHistoryOpen} 
+          onToggle={() => setIsHistoryOpen(!isHistoryOpen)} 
+          onClearHistory={handleClearHistory} 
         />
       )}
 

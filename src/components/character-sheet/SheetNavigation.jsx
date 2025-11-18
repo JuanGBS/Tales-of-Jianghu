@@ -1,13 +1,14 @@
+// ARQUIVO: src/components/character-sheet/SheetNavigation.jsx
+
 import React from 'react';
-// Importe um ícone para o inventário
-import { UserCircleIcon, SparklesIcon, ArrowTrendingUpIcon, ArchiveBoxIcon } from '@heroicons/react/24/solid';
+import { UserCircleIcon, SparklesIcon, ArrowTrendingUpIcon, ArchiveBoxIcon, BoltIcon } from '@heroicons/react/24/solid';
 
 function SheetNavigation({ activeTab, setActiveTab }) {
   const tabs = [
     { id: 'sheet', label: 'Ficha', icon: UserCircleIcon },
     { id: 'techniques', label: 'Técnicas', icon: SparklesIcon },
-    // Adicione a nova aba aqui
     { id: 'inventory', label: 'Equipamento', icon: ArchiveBoxIcon },
+    { id: 'combat', label: 'Combate', icon: BoltIcon },
     { id: 'progression', label: 'Progressão', icon: ArrowTrendingUpIcon },
   ];
 
