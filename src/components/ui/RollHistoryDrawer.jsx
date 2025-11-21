@@ -47,16 +47,17 @@ function RollHistoryDrawer({ history, isOpen, onToggle, onClearHistory, onRollDa
                   <span className="text-xs ml-1">({item.roll} + {item.modifier})</span>
                 </p>
 
-                {/* BOTÃO DE DANO (Se houver fórmula e não for um log de dano já) */}
+                {/* --- CORREÇÃO: Renderiza o botão se houver fórmula --- */}
                 {item.damageFormula && (
                   <button 
                     onClick={() => onRollDamage(item)}
-                    className="w-full py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 rounded flex items-center justify-center gap-2 transition-colors font-bold text-xs"
+                    className="w-full py-2 mt-1 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded flex items-center justify-center gap-2 transition-colors font-bold text-xs shadow-sm"
                   >
-                    <FireIcon className="h-4 w-4" />
+                    <FireIcon className="h-4 w-4 text-orange-500" />
                     Rolar Dano ({item.damageFormula})
                   </button>
                 )}
+                {/* --------------------------------------------------- */}
               </div>
             ))
           ) : (
