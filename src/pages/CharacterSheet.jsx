@@ -19,7 +19,15 @@ import CombatPage from './CombatPage';
 import AttackChoiceModal from '../components/character-sheet/AttackChoiceModal';
 import MinorActionModal from '../components/character-sheet/MinorActionModal';
 import { useAuth } from '../context/AuthContext';
-import QuickStatInput from '../components/ui/QuickStatInput.jsx'; // NOVO IMPORT
+import QuickStatInput from '../components/ui/QuickStatInput.jsx';
+
+function StatInput({ value, onSave, className, placeholder }) {
+  const [localValue, setLocalValue] = useState(value);
+  useEffect(() => { setLocalValue(value); }, [value]);
+  const handleBlur = () => { if (String(localValue) !== String(value)) { onSave(localValue); } };
+  const handleKeyDown = (e) => { if (e.key === 'Enter') { e.target.blur(); } };
+  return <input type="number" value={localValue} onChange={(e) => setLocalValue(e.target.value)} onBlur={handleBlur} onKeyDown={handleKeyDown} className={`w-20 text-center bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-purple-500 focus:outline-none transition-colors appearance-none m-0 p-0 ${className}`} placeholder={placeholder} />;
+}
 
 function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotification, addRollToHistory, onOpenImageTray, onTrain, onBack, combatData, onEndTurn, isGmMode = false }) {
   const { signOut } = useAuth();
@@ -96,6 +104,11 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
     let bonus = character.attributes[attributeKey];
     if (character.proficientAttribute === attributeKey) bonus *= 2;
 
+    let damageFormula = null;
+    if (type === 'weapon') {
+        damageFormula = data.damage || '1d4';
+    }
+
     switch(type) {
       case 'weapon': rollData = { title: `Ataque com ${data.name}`, modifier: bonus, modifierLabel: data.attribute }; break;
       case 'technique': rollData = { title: `Técnica: ${data.name}`, modifier: bonus, modifierLabel: data.attribute }; break;
@@ -107,6 +120,8 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
       rollData.mode = 'advantage';
       showNotification("Ataque com Vantagem (Concentração)!", "success");
     }
+
+    rollData.metaDamageFormula = damageFormula; 
 
     rollData.onRollConfirmed = () => {
       handleActionUsed('major');
@@ -120,8 +135,17 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
       const weapon = character.inventory.weapon;
       let bonus = character.attributes.agility;
       if (character.proficientAttribute === 'agility') bonus *= 2;
+      
+      const damageFormula = weapon.damage || '1d4';
 
-      openRollModal({ title: `Segundo Ataque (${weapon.name})`, modifier: bonus, modifierLabel: 'Agilidade', onRollConfirmed: () => handleActionUsed('minor') });
+      // Aqui também: passamos como metaDamageFormula
+      openRollModal({ 
+          title: `Segundo Ataque (${weapon.name})`, 
+          modifier: bonus, 
+          modifierLabel: 'Agilidade', 
+          metaDamageFormula: damageFormula, 
+          onRollConfirmed: () => handleActionUsed('minor') 
+      });
       return;
     }
 
@@ -367,8 +391,18 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
         title={rollModalData?.title || ''}
         modifier={rollModalData?.modifier || 0}
         modifierLabel={rollModalData?.modifierLabel || ''}
+        
+        diceFormula={rollModalData?.diceFormula}
+        
         onRollComplete={(result) => {
-          addRollToHistory({ name: rollModalData.title, roll: result.roll, modifier: result.modifier, total: result.total });
+          addRollToHistory({ 
+              name: rollModalData.title, 
+              roll: result.roll, 
+              modifier: result.modifier, 
+              total: result.total,
+              damageFormula: rollModalData.metaDamageFormula || rollModalData.diceFormula || null
+          });
+          
           if (rollModalData.onRollConfirmed) {
             rollModalData.onRollConfirmed();
           }

@@ -14,7 +14,6 @@ export function usePlayerCombat(character, showNotification) {
     activeCombatIdRef.current = character?.activeCombatId;
   }, [character]);
 
-  // Polling e Fetch (Mantido igual ao anterior funcional)
   const fetchCombat = useCallback(async () => {
     const combatId = activeCombatIdRef.current;
     if (!combatId) {
@@ -60,7 +59,6 @@ export function usePlayerCombat(character, showNotification) {
   
   const sendInitiative = async (value) => {
     if (!combatData) return;
-    
     const { data: fresh } = await supabase.from('combat').select('*').eq('id', combatData.id).single();
     if (!fresh) return;
 
@@ -80,13 +78,12 @@ export function usePlayerCombat(character, showNotification) {
   const endTurn = async () => {
     if (!combatData) return;
     const nextIdx = (combatData.current_turn_index + 1) % combatData.turn_order.length;
-    
     setCombatData(prev => ({ ...prev, current_turn_index: nextIdx }));
     await supabase.from('combat').update({ current_turn_index: nextIdx }).eq('id', combatData.id);
   };
 
-  // --- NOVA FUNÇÃO: ENVIAR LOG DO JOGADOR ---
-  const sendPlayerLog = async (actionName, rollResult) => {
+  // ATUALIZADO: Aceita damageFormula
+  const sendPlayerLog = async (actionName, rollResult, damageFormula = null) => {
     if (!combatData) return;
 
     const total = rollResult.total;
@@ -95,7 +92,6 @@ export function usePlayerCombat(character, showNotification) {
     const isCrit = roll === 20;
     const isFail = roll === 1;
 
-    // Formata a mensagem igual ao GM
     let logMsg = `${character.name} usou **${actionName}**: Rolou **${total}** (${roll}${bonus >= 0 ? '+' : ''}${bonus}).`;
     
     if (isCrit) logMsg += " **CRÍTICO!**";
@@ -105,10 +101,10 @@ export function usePlayerCombat(character, showNotification) {
         id: Date.now(),
         message: logMsg,
         type: isCrit ? 'crit' : (isFail ? 'fail' : 'info'),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        damageFormula: damageFormula // Envia a fórmula para o Mestre
     };
 
-    // Envia para o campo last_roll
     await supabase
         .from('combat')
         .update({ last_roll: newLog })
@@ -117,25 +113,15 @@ export function usePlayerCombat(character, showNotification) {
 
   useEffect(() => {
     fetchCombat();
-
     const combatId = activeCombatIdRef.current;
     if (!combatId) return;
     
-    // Polling de segurança (1s)
     const interval = setInterval(fetchCombat, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [character?.activeCombatId, fetchCombat]);
 
   return {
-    combatData,
-    showInitiativeRoll,
-    setShowInitiativeRoll,
-    sendInitiative,
-    endTurn,
-    forceRefresh: fetchCombat,
-    sendPlayerLog // <--- EXPORTADO
+    combatData, showInitiativeRoll, setShowInitiativeRoll, sendInitiative, endTurn, forceRefresh: fetchCombat,
+    sendPlayerLog
   };
 }

@@ -16,6 +16,7 @@ import ProficiencyChoiceModal from './components/character-sheet/ProficiencyChoi
 import GameMasterPanel from './pages/GameMasterPanel.jsx';
 import InitiativeTracker from './components/combat/InitiativeTracker.jsx';
 import InitiativeRollModal from './components/combat/InitiativeRollModal.jsx';
+import RollTestModal from './components/character-sheet/RollTestModal.jsx'; // <--- IMPORTADO
 
 const defaultInventory = {
   weapon: { name: '', damage: '', attribute: '', properties: '' },
@@ -61,6 +62,9 @@ function AppContent() {
   const [userImages, setUserImages] = useState([]);
   const [isProficiencyModalOpen, setIsProficiencyModalOpen] = useState(false);
 
+  // NOVO ESTADO: Controla o modal de dano vindo do histórico
+  const [damageModalData, setDamageModalData] = useState(null);
+
   const showNotification = (message, type = 'success') => setNotification({ message, type });
 
   // HOOK DE COMBATE DO JOGADOR
@@ -71,7 +75,7 @@ function AppContent() {
     sendInitiative, 
     endTurn, 
     forceRefresh,
-    sendPlayerLog // <--- Importante: Função para enviar log ao GM
+    sendPlayerLog 
   } = usePlayerCombat(character, showNotification);
 
   useEffect(() => {
@@ -116,11 +120,9 @@ function AppContent() {
     endTurn();
   };
 
-  // --- Função intermediária para Logs ---
-  const handleSendLog = (actionName, result) => {
-      // Só envia para o banco se estiver em combate ativo
+  const handleSendLog = (actionName, result, damageFormula = null) => {
       if (combatData && combatData.status === 'active') {
-          sendPlayerLog(actionName, result);
+          sendPlayerLog(actionName, result, damageFormula);
       }
   };
 
@@ -146,18 +148,26 @@ function AppContent() {
   const handleSelectImage = async (url) => { handleUpdateCharacter({ ...character, imageUrl: url }); setIsImageTrayOpen(false); };
   const handleProficiencySelect = async (attr) => { handleUpdateCharacter({ ...character, proficientAttribute: attr }); setIsProficiencyModalOpen(false); };
   
-  // --- AQUI CONECTAMOS TUDO ---
   const addRollToHistory = (r) => { 
       setRollHistory(prev => [r, ...prev].slice(0, 15)); 
       setIsHistoryOpen(true); 
-      
-      // Chama o envio para o GM
-      // 'r' contém: { name, roll, modifier, total }
-      handleSendLog(r.name, { total: r.total, roll: r.roll, modifier: r.modifier });
+      // Se tem formula, passa ela. Se nao, null.
+      handleSendLog(r.name, { total: r.total, roll: r.roll, modifier: r.modifier }, r.damageFormula || null);
   };
   
   const handleClearHistory = () => { setRollHistory([]); };
   const handleOpenImageTray = () => { fetchUserImages(); setIsImageTrayOpen(true); };
+
+  // --- NOVA FUNÇÃO: Rolar Dano a partir do Histórico ---
+  const handleHistoryDamageRoll = (historyItem) => {
+    // Abre o modal configurado para dano
+    setDamageModalData({
+        title: `Dano: ${historyItem.name}`,
+        diceFormula: historyItem.damageFormula,
+        modifier: 0, // O modificador fixo (ex: força) já costuma vir somado no ataque em alguns sistemas, ou pode ser 0 aqui
+        modifierLabel: 'Bônus'
+    });
+  };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   if (!user) return <AuthPage />;
@@ -188,7 +198,7 @@ function AppContent() {
                 onDelete={handleDeleteCharacter} 
                 onUpdateCharacter={handleUpdateCharacter}
                 showNotification={showNotification}
-                addRollToHistory={addRollToHistory} // Passa a função conectada
+                addRollToHistory={addRollToHistory}
                 onOpenImageTray={handleOpenImageTray}
                 onTrain={handleProgressionChange}
                 combatData={combatData}
@@ -203,11 +213,38 @@ function AppContent() {
       )}
 
       {(character || profile?.role === 'gm') && (
-        <RollHistoryDrawer history={rollHistory} isOpen={isHistoryOpen} onToggle={() => setIsHistoryOpen(!isHistoryOpen)} onClearHistory={handleClearHistory} />
+        <RollHistoryDrawer 
+            history={rollHistory} 
+            isOpen={isHistoryOpen} 
+            onToggle={() => setIsHistoryOpen(!isHistoryOpen)} 
+            onClearHistory={handleClearHistory}
+            onRollDamage={handleHistoryDamageRoll} // <--- Passando a função nova
+        />
       )}
 
       <ImageSelectionTray isOpen={isImageTrayOpen} onClose={() => setIsImageTrayOpen(false)} images={userImages} onSelect={handleSelectImage} onUpload={handleImageUpload} />
       <ProficiencyChoiceModal isOpen={isProficiencyModalOpen} onSelect={handleProficiencySelect} />
+      
+      {/* MODAL DE DANO DO HISTÓRICO (GLOBAL PARA O APP) */}
+      <RollTestModal 
+        isOpen={!!damageModalData} 
+        onClose={() => setDamageModalData(null)}
+        title={damageModalData?.title}
+        modifier={damageModalData?.modifier}
+        modifierLabel={damageModalData?.modifierLabel}
+        diceFormula={damageModalData?.diceFormula}
+        onRollComplete={(result) => {
+             // Adiciona o resultado do dano ao histórico e envia pro GM
+             addRollToHistory({ 
+                 name: damageModalData.title, 
+                 roll: result.roll, 
+                 modifier: result.modifier, 
+                 total: result.total,
+                 damageFormula: null // Não passa formula de novo para não criar loop de botões
+             });
+        }}
+      />
+
       {notification && <NotificationToast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
     </div>
   );

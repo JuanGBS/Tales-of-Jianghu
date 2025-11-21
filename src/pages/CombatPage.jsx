@@ -1,22 +1,19 @@
 import React from 'react';
-import { BoltIcon, ShieldCheckIcon, HandRaisedIcon, PlusCircleIcon, CheckCircleIcon, EyeIcon, ClockIcon, NoSymbolIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { BoltIcon, ShieldCheckIcon, HandRaisedIcon, PlusCircleIcon, CheckCircleIcon, EyeIcon, ClockIcon, NoSymbolIcon, ArrowPathIcon, FireIcon } from '@heroicons/react/24/solid';
 
 function CombatPage({ character, combatState, onNewTurn, openRollModal, onOpenAttackModal, onOpenMinorActionModal, onActionUsed, isMyTurn, onEndTurn, combatData, onRefresh }) {
 
-  // 0. SEM COMBATE
   if (!combatData) {
     return (
       <div className="bg-white p-6 rounded-2xl shadow-lg flex flex-col h-full items-center justify-center text-center">
         <NoSymbolIcon className="h-16 w-16 text-gray-300 mb-4" />
         <h3 className="text-xl font-bold text-gray-500">Nenhum Combate Ativo</h3>
         <p className="text-gray-400 text-sm mt-2">Aguarde o Mestre iniciar.</p>
-        {/* Botão de refresh aqui também, caso o estado esteja bugado sem combatData mas com ID */}
         <button onClick={onRefresh} className="mt-4 text-purple-600 font-bold text-sm flex items-center"><ArrowPathIcon className="h-4 w-4 mr-1" /> Forçar Sincronização</button>
       </div>
     );
   }
 
-  // 1. PREPARANDO COMBATE
   if (combatData.status === 'pending_initiative') {
     const myData = combatData.turn_order.find(p => p.character_id === character.id);
     const myInitiative = myData?.initiative;
@@ -28,40 +25,19 @@ function CombatPage({ character, combatState, onNewTurn, openRollModal, onOpenAt
           <ClockIcon className="h-16 w-16 text-purple-600" />
         </div>
         <h2 className="text-2xl font-bold text-brand-text mb-2">Preparando Combate...</h2>
-        
-        <button 
-            onClick={onRefresh}
-            className="flex items-center gap-2 text-sm text-purple-600 font-semibold hover:bg-purple-50 px-3 py-1 rounded-lg mb-4 transition-colors"
-        >
-            <ArrowPathIcon className="h-4 w-4" /> Atualizar Status / Destravar
-        </button>
-        
+        <button onClick={onRefresh} className="flex items-center gap-2 text-sm text-purple-600 font-semibold hover:bg-purple-50 px-3 py-1 rounded-lg mb-4 transition-colors"><ArrowPathIcon className="h-4 w-4" /> Atualizar Status / Destravar</button>
         {!hasRolled ? (
-          <div className="space-y-2">
-             <p className="text-gray-600 text-lg font-bold animate-pulse">Role sua Iniciativa!</p>
-             <p className="text-sm text-gray-500">(Janela aberta)</p>
-          </div>
+          <div className="space-y-2"><p className="text-gray-600 text-lg font-bold animate-pulse">Role sua Iniciativa!</p><p className="text-sm text-gray-500">(Janela aberta)</p></div>
         ) : (
-          <div className="space-y-2">
-            <p className="text-green-600 font-bold text-xl">Sua Iniciativa: {myInitiative}</p>
-            <p className="text-gray-500">Aguardando o Mestre.</p>
-          </div>
+          <div className="space-y-2"><p className="text-green-600 font-bold text-xl">Sua Iniciativa: {myInitiative}</p><p className="text-gray-500">Aguardando o Mestre.</p></div>
         )}
-
         <div className="mt-8 w-full max-w-md bg-gray-50 rounded-lg p-4 border text-left max-h-60 overflow-y-auto">
           <h4 className="font-bold text-gray-500 text-sm mb-2 sticky top-0 bg-gray-50 pb-1">Participantes:</h4>
           <ul className="space-y-2">
             {combatData.turn_order.map((p, idx) => (
               <li key={idx} className="flex justify-between items-center border-b pb-1 last:border-0">
-                <span className="font-semibold text-gray-700 flex items-center gap-2">
-                   {p.is_npc && <span className="text-xs bg-red-100 text-red-600 px-1 rounded">NPC</span>}
-                   {p.name}
-                </span>
-                {p.initiative !== null ? (
-                  <span className="text-purple-600 font-bold">{p.initiative}</span>
-                ) : (
-                  <span className="text-gray-400 text-sm italic">...</span>
-                )}
+                <span className="font-semibold text-gray-700 flex items-center gap-2">{p.is_npc && <span className="text-xs bg-red-100 text-red-600 px-1 rounded">NPC</span>}{p.name}</span>
+                {p.initiative !== null ? <span className="text-purple-600 font-bold">{p.initiative}</span> : <span className="text-gray-400 text-sm italic">...</span>}
               </li>
             ))}
           </ul>
@@ -70,7 +46,6 @@ function CombatPage({ character, combatState, onNewTurn, openRollModal, onOpenAt
     );
   }
 
-  // 2. COMBATE ATIVO
   const currentTurnIndex = combatData.current_turn_index || 0;
   const turnOrder = combatData.turn_order || [];
   const activeParticipant = turnOrder[currentTurnIndex];
@@ -84,25 +59,14 @@ function CombatPage({ character, combatState, onNewTurn, openRollModal, onOpenAt
     <div className="bg-white p-6 rounded-2xl shadow-lg flex flex-col max-h-[70vh] h-full relative">
       <div className="flex justify-between items-center border-b pb-2 mb-4 flex-shrink-0">
         <h3 className="text-xl font-semibold text-brand-text">Painel de Combate</h3>
-        {isMyTurn ? (
-          <span className="text-sm font-bold text-green-600 animate-pulse bg-green-100 px-3 py-1 rounded-full shadow-sm">SEU TURNO</span>
-        ) : (
-          <span className="text-sm font-bold text-gray-500 flex items-center bg-gray-100 px-3 py-1 rounded-full"><ClockIcon className="h-4 w-4 mr-1" /> Vez de: {activeName}</span>
-        )}
+        {isMyTurn ? <span className="text-sm font-bold text-green-600 animate-pulse bg-green-100 px-3 py-1 rounded-full shadow-sm">SEU TURNO</span> : <span className="text-sm font-bold text-gray-500 flex items-center bg-gray-100 px-3 py-1 rounded-full"><ClockIcon className="h-4 w-4 mr-1" /> Vez de: {activeName}</span>}
       </div>
-      
-      <div className="absolute top-0 right-0 mt-[-40px]">
-         <button onClick={onRefresh} className="text-xs text-gray-400 hover:text-purple-600 flex items-center gap-1 p-2"><ArrowPathIcon className="h-4 w-4" /></button>
-      </div>
-
+      <div className="absolute top-0 right-0 mt-[-40px]"><button onClick={onRefresh} className="text-xs text-gray-400 hover:text-purple-600 flex items-center gap-1 p-4"><ArrowPathIcon className="h-4 w-4" /></button></div>
       {!isMyTurn && <div className="absolute inset-0 top-16 bg-white/60 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center rounded-b-2xl pointer-events-none"></div>}
       
       <div className="space-y-6 overflow-y-auto pr-2 flex-grow">
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="font-bold text-gray-700 text-sm">Ações no Turno</h4>
-            {isMyTurn && (<button onClick={onNewTurn} className="text-xs font-semibold text-purple-600 hover:text-purple-800 underline">Resetar (Debug)</button>)}
-          </div>
+          <div className="flex justify-between items-center mb-2"><h4 className="font-bold text-gray-700 text-sm">Ações no Turno</h4>{isMyTurn && (<button onClick={onNewTurn} className="text-xs font-semibold text-purple-600 hover:text-purple-800 underline">Resetar (Debug)</button>)}</div>
           <div className="grid grid-cols-3 gap-2 bg-gray-100 p-2 rounded-lg text-center font-semibold text-sm">
             <button onClick={handleMovement} disabled={!isMyTurn || combatState.actionsUsed.movement} className={`py-2 rounded-md transition-all ${combatState.actionsUsed.movement ? 'line-through text-gray-400 bg-gray-200' : 'text-gray-800 bg-white shadow-sm hover:bg-gray-50'}`}>Movimento</button>
             <span className={`py-2 rounded-md flex items-center justify-center ${combatState.actionsUsed.major ? 'line-through text-gray-400 bg-gray-200' : 'text-gray-800 bg-white shadow-sm'}`}>Ação Maior</span>

@@ -1,7 +1,7 @@
 import React from 'react';
-import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { ChevronLeftIcon, ChevronRightIcon, TrashIcon, FireIcon } from '@heroicons/react/24/solid';
 
-function RollHistoryDrawer({ history, isOpen, onToggle, onClearHistory }) {
+function RollHistoryDrawer({ history, isOpen, onToggle, onClearHistory, onRollDamage }) {
   const drawerWidth = 320;
 
   const horizontalTransform = isOpen ? 'translateX(0)' : `translateX(${drawerWidth}px)`;
@@ -24,7 +24,7 @@ function RollHistoryDrawer({ history, isOpen, onToggle, onClearHistory }) {
         style={{ width: `${drawerWidth}px` }}
       >
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-brand-text">Histórico de Rolagens</h3>
+          <h3 className="text-xl font-semibold text-brand-text">Histórico</h3>
           {history.length > 0 && (
             <button 
               onClick={onClearHistory} 
@@ -37,15 +37,26 @@ function RollHistoryDrawer({ history, isOpen, onToggle, onClearHistory }) {
           )}
         </div>
 
-        <div className="flex-grow overflow-y-auto space-y-3 pr-2">
+        <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
           {history.length > 0 ? (
             history.map((item, index) => (
-              <div key={index} className="bg-gray-100 p-3 rounded-lg text-sm">
+              <div key={index} className="bg-gray-100 p-3 rounded-lg text-sm shadow-sm border border-gray-200">
                 <p className="font-bold text-gray-800">{item.name}</p>
-                <p className="text-gray-600">
+                <p className="text-gray-600 mb-2">
                   Resultado: <span className="font-bold text-lg text-purple-700">{item.total}</span> 
-                  <span className="text-xs"> ({item.roll} + {item.modifier})</span>
+                  <span className="text-xs ml-1">({item.roll} + {item.modifier})</span>
                 </p>
+
+                {/* BOTÃO DE DANO (Se houver fórmula e não for um log de dano já) */}
+                {item.damageFormula && (
+                  <button 
+                    onClick={() => onRollDamage(item)}
+                    className="w-full py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 rounded flex items-center justify-center gap-2 transition-colors font-bold text-xs"
+                  >
+                    <FireIcon className="h-4 w-4" />
+                    Rolar Dano ({item.damageFormula})
+                  </button>
+                )}
               </div>
             ))
           ) : (
