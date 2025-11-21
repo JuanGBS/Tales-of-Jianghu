@@ -14,6 +14,7 @@ export function usePlayerCombat(character, showNotification) {
     activeCombatIdRef.current = character?.activeCombatId;
   }, [character]);
 
+  // Polling e Fetch (Mantido igual ao anterior funcional)
   const fetchCombat = useCallback(async () => {
     const combatId = activeCombatIdRef.current;
     if (!combatId) {
@@ -36,17 +37,14 @@ export function usePlayerCombat(character, showNotification) {
         setCombatData(data);
         combatDataRef.current = data;
         
-        // LÓGICA DE ESTADO DE INICIATIVA
         if (data.status === 'pending_initiative') {
             const me = data.turn_order.find(p => p.character_id === characterIdRef.current);
-            // Só mostra se eu ainda não tiver rolado
             if (me && me.initiative === null) {
                 setShowInitiativeRoll(true);
             } else {
                 setShowInitiativeRoll(false);
             }
         } else if (data.status === 'active') {
-            // CORREÇÃO: Garante que fecha o modal se o combate já estiver ativo
             setShowInitiativeRoll(false);
         }
       }
@@ -55,7 +53,7 @@ export function usePlayerCombat(character, showNotification) {
           setCombatData(null);
           combatDataRef.current = null;
           setShowInitiativeRoll(false);
-          showNotification("O Combate terminou ou é inválido.", "info");
+          showNotification("O Combate terminou.", "info");
       }
     }
   }, []);
@@ -84,8 +82,37 @@ export function usePlayerCombat(character, showNotification) {
     const nextIdx = (combatData.current_turn_index + 1) % combatData.turn_order.length;
     
     setCombatData(prev => ({ ...prev, current_turn_index: nextIdx }));
-    
     await supabase.from('combat').update({ current_turn_index: nextIdx }).eq('id', combatData.id);
+  };
+
+  // --- NOVA FUNÇÃO: ENVIAR LOG DO JOGADOR ---
+  const sendPlayerLog = async (actionName, rollResult) => {
+    if (!combatData) return;
+
+    const total = rollResult.total;
+    const roll = rollResult.roll;
+    const bonus = rollResult.modifier;
+    const isCrit = roll === 20;
+    const isFail = roll === 1;
+
+    // Formata a mensagem igual ao GM
+    let logMsg = `${character.name} usou **${actionName}**: Rolou **${total}** (${roll}${bonus >= 0 ? '+' : ''}${bonus}).`;
+    
+    if (isCrit) logMsg += " **CRÍTICO!**";
+    if (isFail) logMsg += " **FALHA CRÍTICA!**";
+
+    const newLog = {
+        id: Date.now(),
+        message: logMsg,
+        type: isCrit ? 'crit' : (isFail ? 'fail' : 'info'),
+        timestamp: new Date().toISOString()
+    };
+
+    // Envia para o campo last_roll
+    await supabase
+        .from('combat')
+        .update({ last_roll: newLog })
+        .eq('id', combatData.id);
   };
 
   useEffect(() => {
@@ -93,34 +120,11 @@ export function usePlayerCombat(character, showNotification) {
 
     const combatId = activeCombatIdRef.current;
     if (!combatId) return;
-    const channel = supabase
-      .channel(`player-combat-${combatId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'combat', filter: `id=eq.${combatId}` },
-        (payload) => {
-          if (payload.eventType === 'DELETE') {
-             setCombatData(null);
-             combatDataRef.current = null;
-             setShowInitiativeRoll(false);
-             showNotification("O Combate terminou.", "info");
-          } else {
-             const newData = payload.new;
-             setCombatData(newData);
-             combatDataRef.current = newData;
-             
-             if (newData.status === 'active') {
-                 setShowInitiativeRoll(false);
-             }
-          }
-        }
-      )
-      .subscribe();
-
-    const interval = setInterval(fetchCombat, 2000);
+    
+    // Polling de segurança (1s)
+    const interval = setInterval(fetchCombat, 1000);
 
     return () => {
-      supabase.removeChannel(channel);
       clearInterval(interval);
     };
   }, [character?.activeCombatId, fetchCombat]);
@@ -131,6 +135,7 @@ export function usePlayerCombat(character, showNotification) {
     setShowInitiativeRoll,
     sendInitiative,
     endTurn,
-    forceRefresh: fetchCombat
+    forceRefresh: fetchCombat,
+    sendPlayerLog // <--- EXPORTADO
   };
 }

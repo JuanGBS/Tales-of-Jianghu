@@ -1,73 +1,100 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 
 export function useCombatManager(user, showNotification) {
   const [combatData, setCombatData] = useState(null);
-  const combatIdRef = useRef(null);
+  const [localLogs, setLocalLogs] = useState([]);
+  
+  const combatDataRef = useRef(combatData);
+  const logsRef = useRef([]); // Ref para evitar closures antigas no realtime
 
-  // Função centralizada para FORÇAR a atualização dos dados
-  const refreshCombat = useCallback(async () => {
+  useEffect(() => {
+    combatDataRef.current = combatData;
+  }, [combatData]);
+
+  useEffect(() => {
+    logsRef.current = localLogs;
+  }, [localLogs]);
+
+  // Função auxiliar para salvar no LocalStorage e no Estado
+  const appendLog = useCallback((newLog) => {
+    if (!newLog || !newLog.id) return;
+
+    // Evita duplicatas (caso o realtime envie o que a gente acabou de salvar otimistamente)
+    const exists = logsRef.current.some(l => l.id === newLog.id);
+    if (exists) return;
+
+    const updatedLogs = [...logsRef.current, newLog];
+    setLocalLogs(updatedLogs);
+
+    // Salva no LocalStorage
+    const combatId = combatDataRef.current?.id;
+    if (combatId) {
+      localStorage.setItem(`combat_logs_${combatId}`, JSON.stringify(updatedLogs));
+    }
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
 
-    try {
-      const { data, error } = await supabase
+    const fetchInitial = async () => {
+      const { data } = await supabase
         .from('combat')
         .select('*')
         .eq('gm_id', user.id)
         .maybeSingle();
-
-      if (error) {
-        console.error("Erro ao buscar combate:", error);
-        return;
-      }
-
-      // Atualiza o estado se houver dados, ou limpa se não houver
+      
       if (data) {
         setCombatData(data);
-        combatIdRef.current = data.id;
-      } else {
-        setCombatData(null);
-        combatIdRef.current = null;
+        
+        // Carrega logs do LocalStorage
+        const savedLogs = localStorage.getItem(`combat_logs_${data.id}`);
+        if (savedLogs) {
+          try {
+            setLocalLogs(JSON.parse(savedLogs));
+          } catch (e) {
+            console.error("Erro ao ler logs locais", e);
+          }
+        }
       }
-    } catch (err) {
-      console.error("Erro fatal no refresh:", err);
-    }
-  }, [user]);
+    };
 
-  // Setup Inicial e Realtime (como backup)
-  useEffect(() => {
-    refreshCombat();
+    fetchInitial();
 
     const channel = supabase
-      .channel(`gm_combat_sync_${user?.id}`)
+      .channel(`gm_combat_manager_${user.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'combat', filter: `gm_id=eq.${user?.id}` },
+        { event: '*', schema: 'public', table: 'combat', filter: `gm_id=eq.${user.id}` },
         (payload) => {
-          // Se recebermos um evento do realtime, atualizamos.
-          // Mas não dependemos SÓ disso.
           if (payload.eventType === 'DELETE') {
             setCombatData(null);
-          } else {
-            setCombatData(payload.new);
-            combatIdRef.current = payload.new.id;
+            setLocalLogs([]);
+          } else if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const newData = payload.new;
+            
+            // Atualiza dados gerais (Turno, Status)
+            setCombatData(prev => ({ ...prev, ...newData }));
+
+            // Se houve uma nova rolagem vinda de fora (ex: Jogador), adiciona ao log
+            if (newData.last_roll) {
+                appendLog(newData.last_roll);
+            }
           }
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, refreshCombat]);
+  }, [user, appendLog]);
 
   // --- AÇÕES ---
 
-  // 1. CRIAR COMBATE
   const createCombat = async (participants) => {
     try {
       const turnOrder = participants.map((char) => {
         const isNpc = !!char.isNpc || !!char.is_npc || (typeof char.id === 'string' && char.id.startsWith('npc_'));
         let initiative = null;
-        
         if (isNpc) {
           const roll = Math.floor(Math.random() * 20) + 1;
           const bonus = (char.attributes?.agility || 0);
@@ -88,20 +115,18 @@ export function useCombatManager(user, showNotification) {
         };
       });
 
-      // Limpeza
       await supabase.from("combat").delete().gt("id", "00000000-0000-0000-0000-000000000000");
 
-      // Insert
       const { data: newCombat, error } = await supabase.from("combat").insert({
         gm_id: user.id,
         status: "pending_initiative",
         turn_order: turnOrder,
         current_turn_index: 0,
+        last_roll: null
       }).select().single();
 
       if (error) throw error;
 
-      // Vinculo
       const validIds = participants
         .filter(p => p.id && !p.id.toString().startsWith('npc_temp'))
         .map(p => p.id);
@@ -110,29 +135,30 @@ export function useCombatManager(user, showNotification) {
         await supabase.from('characters').update({ active_combat_id: newCombat.id }).in('id', validIds);
       }
 
-      // Atualiza estado local via refresh garantido
-      await refreshCombat();
+      // Limpa logs antigos do storage se criar um novo combate
+      localStorage.removeItem(`combat_logs_${newCombat.id}`);
+      setLocalLogs([]);
+      setCombatData(newCombat);
       showNotification("Combate criado!", "success");
 
     } catch (error) {
-      console.error(error);
+      console.error("Erro createCombat:", error);
       showNotification("Erro ao criar combate.", "error");
     }
   };
 
-  // 2. INICIAR RODADA
   const startRound = async () => {
     if (!combatData) return;
     
     try {
-        // Busca dados frescos primeiro
+        // Busca dados frescos
         const { data: freshCombat } = await supabase
             .from('combat')
             .select('*')
             .eq('id', combatData.id)
             .single();
 
-        if (!freshCombat) return;
+        if (!freshCombat) throw new Error("Falha de sync");
 
         const updatedOrder = freshCombat.turn_order.map(p => {
             if (p.initiative === null || p.initiative === undefined) {
@@ -141,82 +167,81 @@ export function useCombatManager(user, showNotification) {
             return p;
         }).sort((a, b) => (b.initiative || 0) - (a.initiative || 0));
 
-        await supabase.from('combat').update({
+        const optimisticData = {
+            ...freshCombat,
             turn_order: updatedOrder,
             status: 'active',
             current_turn_index: 0
-        }).eq('id', combatData.id);
+        };
+        setCombatData(optimisticData);
 
-        // FORÇA ATUALIZAÇÃO DA TELA
-        await refreshCombat();
+        const { data: serverData, error } = await supabase
+            .from('combat')
+            .update({
+                turn_order: updatedOrder,
+                status: 'active',
+                current_turn_index: 0
+            })
+            .eq('id', combatData.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        if (serverData) setCombatData(serverData);
+        
         showNotification("Rodada Iniciada!", "success");
-
     } catch (err) {
-        console.error(err);
-        showNotification("Erro ao iniciar rodada.", "error");
+        console.error("Erro startRound:", err);
+        showNotification("Erro ao iniciar.", "error");
     }
   };
 
-  // 3. PRÓXIMO TURNO (Estratégia de Fetch Manual)
   const nextTurn = async () => {
-    // Usa ref ou state atual
-    const currentId = combatIdRef.current || combatData?.id;
-    if (!currentId) return;
+    const currentData = combatDataRef.current || combatData;
+    if (!currentData) return;
+
+    const len = currentData.turn_order?.length || 1;
+    const currentIdx = currentData.current_turn_index || 0;
+    const nextIdx = (currentIdx + 1) % len;
+
+    // Otimista
+    setCombatData(prev => ({ ...prev, current_turn_index: nextIdx }));
 
     try {
-        // 1. Pega do banco para garantir índice correto
-        const { data: fresh, error } = await supabase
+        const { data: serverData, error } = await supabase
             .from('combat')
-            .select('current_turn_index, turn_order')
-            .eq('id', currentId)
+            .update({ current_turn_index: nextIdx })
+            .eq('id', currentData.id)
+            .select()
             .single();
 
-        if (error || !fresh) throw new Error("Erro sync");
-
-        const len = fresh.turn_order?.length || 1;
-        const current = fresh.current_turn_index || 0;
-        const nextIndex = (current + 1) % len;
-
-        // 2. Atualiza no Banco
-        const { error: updateError } = await supabase
-            .from('combat')
-            .update({ current_turn_index: nextIndex })
-            .eq('id', currentId);
-
-        if (updateError) throw updateError;
-
-        // 3. FORÇA O REFRESH IMEDIATO (Ignora cookie/socket errors)
-        await refreshCombat();
+        if (error) throw error;
+        if (serverData) setCombatData(serverData);
 
     } catch (err) {
         console.error("Erro nextTurn:", err);
-        showNotification("Erro ao passar turno.", "error");
+        showNotification("Erro ao salvar turno.", "error");
     }
   };
 
-  // 4. ENCERRAR
   const endCombat = async () => {
     const currentId = combatData?.id;
-    
-    // Limpa UI imediatamente para feedback rápido
     setCombatData(null);
-    combatIdRef.current = null;
+    setLocalLogs([]);
 
     try {
         if (currentId) {
              await supabase.from('characters').update({ active_combat_id: null }).eq('active_combat_id', currentId);
+             // Limpa LocalStorage
+             localStorage.removeItem(`combat_logs_${currentId}`);
         }
         await supabase.from('combat').delete().eq('gm_id', user.id);
-        
-        // Garante que limpou
-        await refreshCombat();
         showNotification("Combate encerrado.", "success");
     } catch (error) {
-        console.error(error);
+        console.error("Erro endCombat:", error);
     }
   };
 
-  // 5. ROLAGEM GM
   const gmRoll = async (index) => {
       if (!combatData) return;
       const order = [...combatData.turn_order];
@@ -224,10 +249,13 @@ export function useCombatManager(user, showNotification) {
       const total = Math.floor(Math.random() * 20) + 1 + (p.attributes?.agility || 0);
       order[index] = { ...p, initiative: total };
       
-      await supabase.from('combat').update({ turn_order: order }).eq('id', combatData.id);
+      setCombatData(prev => ({ ...prev, turn_order: order }));
+
+      await supabase
+        .from('combat')
+        .update({ turn_order: order })
+        .eq('id', combatData.id);
       
-      // Força update
-      await refreshCombat();
       showNotification(`Rolado ${total} para ${p.name}`, "success");
   };
 
@@ -237,17 +265,41 @@ export function useCombatManager(user, showNotification) {
      if (data) {
          const newStats = { ...data.stats, [field]: val };
          await supabase.from('characters').update({ stats: newStats }).eq('id', charId);
-         // Stats não precisa de refreshCombat pois é gerido localmente no GameMasterPanel para performance
      }
+  };
+
+  // NOVA FUNÇÃO: ENVIA ROLAGEM PARA A COLUNA last_roll
+  const sendCombatLog = async (message, type = 'info') => {
+    const currentData = combatDataRef.current || combatData;
+    if (!currentData) return;
+
+    const newLog = {
+        id: Date.now(),
+        message,
+        type, 
+        timestamp: new Date().toISOString()
+    };
+
+    // 1. Adiciona Localmente Imediatamente (Feedback instantâneo)
+    appendLog(newLog);
+
+    // 2. Envia para o banco para que outros vejam (se implementarmos a visão do player depois)
+    // Isso não afeta o turno, pois é uma coluna diferente
+    await supabase
+        .from('combat')
+        .update({ last_roll: newLog })
+        .eq('id', currentData.id);
   };
 
   return {
     combatData,
+    localLogs, // Exporta os logs locais
     createCombat,
     startRound,
     nextTurn,
     endCombat,
     gmRoll,
-    updateStat
+    updateStat,
+    sendCombatLog 
   };
 }

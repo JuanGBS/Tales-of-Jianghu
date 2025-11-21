@@ -43,7 +43,7 @@ const mapToCamelCase = (data) => {
     techniques: data.techniques || [], 
     proficientPericias: data.proficient_pericias || [], 
     inventory: data.inventory || defaultInventory, 
-    createdAt: data.created_at,
+    createdAt: data.created_at, 
     activeCombatId: data.active_combat_id
   };
 };
@@ -51,13 +51,11 @@ const mapToCamelCase = (data) => {
 function AppContent() {
   const { user, profile, isLoading } = useAuth();
   
-  // Estado Global do App
   const [character, setCharacter] = useState(null);
   const [characterLoading, setCharacterLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [rollHistory, setRollHistory] = useState(() => JSON.parse(localStorage.getItem('rollHistory') || '[]'));
   
-  // Modais Globais
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isImageTrayOpen, setIsImageTrayOpen] = useState(false);
   const [userImages, setUserImages] = useState([]);
@@ -65,21 +63,19 @@ function AppContent() {
 
   const showNotification = (message, type = 'success') => setNotification({ message, type });
 
-  // --- HOOK DE COMBATE DO JOGADOR ---
-  // Toda a lógica complexa de sync, polling e turnos está aqui agora
+  // HOOK DE COMBATE DO JOGADOR
   const { 
     combatData, 
     showInitiativeRoll, 
     setShowInitiativeRoll,
     sendInitiative, 
     endTurn, 
-    forceRefresh 
+    forceRefresh,
+    sendPlayerLog // <--- Importante: Função para enviar log ao GM
   } = usePlayerCombat(character, showNotification);
 
-  // --- LISTENERS DA FICHA (Apenas para detectar entrada/saída de combate) ---
   useEffect(() => {
     if (!character?.id) return;
-    
     const charChannel = supabase
       .channel(`app-char-sync-${character.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'characters', filter: `id=eq.${character.id}` }, (payload) => {
@@ -87,11 +83,9 @@ function AppContent() {
           setCharacter(newChar);
       })
       .subscribe();
-
     return () => { supabase.removeChannel(charChannel); };
   }, [character?.id]);
 
-  // --- CARGA INICIAL ---
   useEffect(() => {
     if (user && profile && profile.role !== 'gm') {
       const fetchCharacter = async () => {
@@ -107,10 +101,8 @@ function AppContent() {
     }
   }, [user, profile]);
 
-  // --- AÇÕES DE COMBATE PARA UI ---
   const handlePlayerInitiativeRoll = (val) => {
       sendInitiative(val);
-      // O hook já fecha o modal, mas garantimos visualmente aqui se quiser
       setShowInitiativeRoll(false);
   };
 
@@ -124,20 +116,46 @@ function AppContent() {
     endTurn();
   };
 
-  // --- OUTRAS FUNÇÕES (CRUD, Imagens) ---
-  // (Mantidas para brevidade, lógica padrão)
-  const fetchUserImages = async () => { /* ... */ 
-    if (!user) return; const { data } = await supabase.storage.from('character-images').list(`public/${user.id}`, { limit: 100, offset: 0, sortBy: { column: 'created_at', order: 'desc' }});
+  // --- Função intermediária para Logs ---
+  const handleSendLog = (actionName, result) => {
+      // Só envia para o banco se estiver em combate ativo
+      if (combatData && combatData.status === 'active') {
+          sendPlayerLog(actionName, result);
+      }
+  };
+
+  const fetchUserImages = async () => { 
+    if (!user) return; 
+    const { data } = await supabase.storage.from('character-images').list(`public/${user.id}`, { limit: 100, offset: 0, sortBy: { column: 'created_at', order: 'desc' }});
     if (data) { const urls = data.map(f => ({ id: f.id, name: f.name, publicURL: supabase.storage.from('character-images').getPublicUrl(`public/${user.id}/${f.name}`).data.publicUrl })); setUserImages(urls); }
   };
+  
   const handleSaveCharacter = async (data) => { const { data: r } = await supabase.from('characters').insert([{ user_id: user.id, ...data, inventory: defaultInventory }]).select().single(); setCharacter(mapToCamelCase(r)); };
   const handleDeleteCharacter = async () => { await supabase.from('characters').delete().eq('id', character.id); setCharacter(null); };
   const handleUpdateCharacter = async (u) => { const d = { proficient_attribute: u.proficientAttribute, name: u.name, clan_id: u.clanId, fighting_style: u.fightingStyle, innate_body_id: u.innateBodyId, image_url: u.imageUrl, body_refinement_level: u.bodyRefinementLevel, cultivation_stage: u.cultivationStage, mastery_level: u.mastery_level, attributes: u.attributes, stats: u.stats, techniques: u.techniques, proficient_pericias: u.proficientPericias, inventory: u.inventory }; const { data } = await supabase.from('characters').update(d).eq('id', u.id).select().single(); if(data) setCharacter(mapToCamelCase(data)); };
-  const handleProgressionChange = (updates) => { if (updates.type === 'attribute_increase') { handleUpdateCharacter({ ...character, attributes: { ...character.attributes, [updates.attribute]: character.attributes[updates.attribute] + 1 } }); } else { handleUpdateCharacter({ ...character, ...updates }); } };
+  
+  const handleProgressionChange = (updates) => { 
+      if (updates.type === 'attribute_increase') { 
+          handleUpdateCharacter({ ...character, attributes: { ...character.attributes, [updates.attribute]: character.attributes[updates.attribute] + 1 } }); 
+      } else { 
+          handleUpdateCharacter({ ...character, ...updates }); 
+      } 
+  };
+  
   const handleImageUpload = async (f) => { const path = `public/${user.id}/${user.id}-${Date.now()}.${f.name.split('.').pop()}`; await supabase.storage.from('character-images').upload(path, f); await fetchUserImages(); };
   const handleSelectImage = async (url) => { handleUpdateCharacter({ ...character, imageUrl: url }); setIsImageTrayOpen(false); };
   const handleProficiencySelect = async (attr) => { handleUpdateCharacter({ ...character, proficientAttribute: attr }); setIsProficiencyModalOpen(false); };
-  const addRollToHistory = (r) => { setRollHistory(prev => [r, ...prev].slice(0, 15)); setIsHistoryOpen(true); };
+  
+  // --- AQUI CONECTAMOS TUDO ---
+  const addRollToHistory = (r) => { 
+      setRollHistory(prev => [r, ...prev].slice(0, 15)); 
+      setIsHistoryOpen(true); 
+      
+      // Chama o envio para o GM
+      // 'r' contém: { name, roll, modifier, total }
+      handleSendLog(r.name, { total: r.total, roll: r.roll, modifier: r.modifier });
+  };
+  
   const handleClearHistory = () => { setRollHistory([]); };
   const handleOpenImageTray = () => { fetchUserImages(); setIsImageTrayOpen(true); };
 
@@ -151,9 +169,7 @@ function AppContent() {
       )}
       
       {profile?.role === 'gm' ? (
-        <GameMasterPanel 
-          // O GM agora usa seu próprio hook interno, não precisamos passar combatData daqui
-        />
+        <GameMasterPanel />
       ) : (
         <main>
           {character && (
@@ -172,10 +188,9 @@ function AppContent() {
                 onDelete={handleDeleteCharacter} 
                 onUpdateCharacter={handleUpdateCharacter}
                 showNotification={showNotification}
-                addRollToHistory={addRollToHistory}
+                addRollToHistory={addRollToHistory} // Passa a função conectada
                 onOpenImageTray={handleOpenImageTray}
                 onTrain={handleProgressionChange}
-                // PROPS DO HOOK
                 combatData={combatData}
                 onEndTurn={handleEndPlayerTurn}
                 onForceRefresh={forceRefresh}
