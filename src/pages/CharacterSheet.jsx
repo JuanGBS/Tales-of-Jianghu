@@ -105,8 +105,11 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
     if (character.proficientAttribute === attributeKey) bonus *= 2;
 
     let damageFormula = null;
+    let weaponCategory = null;
+    
     if (type === 'weapon') {
         damageFormula = data.damage || '1d4';
+        weaponCategory = data.category;
     }
 
     switch(type) {
@@ -122,6 +125,8 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
     }
 
     rollData.metaDamageFormula = damageFormula; 
+    rollData.weaponCategory = weaponCategory;
+    rollData.metaDamageBonus = bonus; // Passa o bônus para o modal
 
     rollData.onRollConfirmed = () => {
       handleActionUsed('major');
@@ -138,7 +143,6 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
       
       const damageFormula = weapon.damage || '1d4';
 
-      // Aqui também: passamos como metaDamageFormula
       openRollModal({ 
           title: `Segundo Ataque (${weapon.name})`, 
           modifier: bonus, 
@@ -265,7 +269,7 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
                 <span className="text-sm text-gray-500 mb-1 font-semibold">Chi</span>
                 {isGmMode ? (
                     <div className="flex flex-col items-center">
-                        <QuickStatInput value={character.stats.currentChi} maxValue={finalMaxChi} onSave={(val) => handleManualStatEdit('currentChi', val)} className="text-2xl font-bold text-gray-700 mb-1 w-20 text-center bg-transparent" />
+                        <QuickStatInput value={character.stats.currentChi} onSave={(val) => handleManualStatEdit('currentChi', val)} className="text-2xl font-bold text-gray-700 mb-1 w-20 text-center bg-transparent" />
                         <div className="w-12 border-t border-gray-300 my-1"></div>
                         <QuickStatInput value={finalMaxChi} onSave={(val) => handleManualStatEdit('manualMaxChi', val)} className="text-lg font-bold text-blue-600 w-20 text-center bg-transparent" />
                     </div>
@@ -391,16 +395,18 @@ function CharacterSheet({ character, onDelete, onUpdateCharacter, showNotificati
         title={rollModalData?.title || ''}
         modifier={rollModalData?.modifier || 0}
         modifierLabel={rollModalData?.modifierLabel || ''}
-        
         diceFormula={rollModalData?.diceFormula}
-        
         onRollComplete={(result) => {
           addRollToHistory({ 
               name: rollModalData.title, 
               roll: result.roll, 
               modifier: result.modifier, 
               total: result.total,
-              damageFormula: rollModalData.metaDamageFormula || rollModalData.diceFormula || null
+              
+              damageFormula: rollModalData.metaDamageFormula || rollModalData.diceFormula || null,
+              weaponCategory: rollModalData.weaponCategory || null,
+              
+              damageBonus: rollModalData.metaDamageBonus !== undefined ? rollModalData.metaDamageBonus : result.modifier
           });
           
           if (rollModalData.onRollConfirmed) {

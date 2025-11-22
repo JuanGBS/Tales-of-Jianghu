@@ -16,7 +16,7 @@ import ProficiencyChoiceModal from './components/character-sheet/ProficiencyChoi
 import GameMasterPanel from './pages/GameMasterPanel.jsx';
 import InitiativeTracker from './components/combat/InitiativeTracker.jsx';
 import InitiativeRollModal from './components/combat/InitiativeRollModal.jsx';
-import RollTestModal from './components/character-sheet/RollTestModal.jsx'; // <--- IMPORTADO
+import RollTestModal from './components/character-sheet/RollTestModal.jsx';
 
 const defaultInventory = {
   weapon: { name: '', damage: '', attribute: '', properties: '' },
@@ -62,7 +62,7 @@ function AppContent() {
   const [userImages, setUserImages] = useState([]);
   const [isProficiencyModalOpen, setIsProficiencyModalOpen] = useState(false);
 
-  // NOVO ESTADO: Controla o modal de dano vindo do histórico
+  // Estado para rolagem de dano do histórico
   const [damageModalData, setDamageModalData] = useState(null);
 
   const showNotification = (message, type = 'success') => setNotification({ message, type });
@@ -75,7 +75,7 @@ function AppContent() {
     sendInitiative, 
     endTurn, 
     forceRefresh,
-    sendPlayerLog 
+    sendPlayerLog
   } = usePlayerCombat(character, showNotification);
 
   useEffect(() => {
@@ -120,9 +120,10 @@ function AppContent() {
     endTurn();
   };
 
-  const handleSendLog = (actionName, result, damageFormula = null) => {
+  // Conecta o log com o hook, passando todos os dados necessários
+  const handleSendLog = (actionName, result, damageFormula, weaponCategory, damageBonus) => {
       if (combatData && combatData.status === 'active') {
-          sendPlayerLog(actionName, result, damageFormula);
+          sendPlayerLog(actionName, result, damageFormula, weaponCategory, damageBonus);
       }
   };
 
@@ -151,20 +152,18 @@ function AppContent() {
   const addRollToHistory = (r) => { 
       setRollHistory(prev => [r, ...prev].slice(0, 15)); 
       setIsHistoryOpen(true); 
-      // Se tem formula, passa ela. Se nao, null.
-      handleSendLog(r.name, { total: r.total, roll: r.roll, modifier: r.modifier }, r.damageFormula || null);
+      // Passa o damageBonus (r.damageBonus)
+      handleSendLog(r.name, { total: r.total, roll: r.roll, modifier: r.modifier }, r.damageFormula || null, r.weaponCategory || null, r.damageBonus || 0);
   };
   
   const handleClearHistory = () => { setRollHistory([]); };
   const handleOpenImageTray = () => { fetchUserImages(); setIsImageTrayOpen(true); };
 
-  // --- NOVA FUNÇÃO: Rolar Dano a partir do Histórico ---
   const handleHistoryDamageRoll = (historyItem) => {
-    // Abre o modal configurado para dano
     setDamageModalData({
         title: `Dano: ${historyItem.name}`,
         diceFormula: historyItem.damageFormula,
-        modifier: 0, // O modificador fixo (ex: força) já costuma vir somado no ataque em alguns sistemas, ou pode ser 0 aqui
+        modifier: 0, 
         modifierLabel: 'Bônus'
     });
   };
@@ -218,14 +217,13 @@ function AppContent() {
             isOpen={isHistoryOpen} 
             onToggle={() => setIsHistoryOpen(!isHistoryOpen)} 
             onClearHistory={handleClearHistory}
-            onRollDamage={handleHistoryDamageRoll} // <--- Passando a função nova
+            onRollDamage={handleHistoryDamageRoll}
         />
       )}
 
       <ImageSelectionTray isOpen={isImageTrayOpen} onClose={() => setIsImageTrayOpen(false)} images={userImages} onSelect={handleSelectImage} onUpload={handleImageUpload} />
       <ProficiencyChoiceModal isOpen={isProficiencyModalOpen} onSelect={handleProficiencySelect} />
       
-      {/* MODAL DE DANO DO HISTÓRICO (GLOBAL PARA O APP) */}
       <RollTestModal 
         isOpen={!!damageModalData} 
         onClose={() => setDamageModalData(null)}
@@ -234,13 +232,12 @@ function AppContent() {
         modifierLabel={damageModalData?.modifierLabel}
         diceFormula={damageModalData?.diceFormula}
         onRollComplete={(result) => {
-             // Adiciona o resultado do dano ao histórico e envia pro GM
              addRollToHistory({ 
                  name: damageModalData.title, 
                  roll: result.roll, 
                  modifier: result.modifier, 
                  total: result.total,
-                 damageFormula: null // Não passa formula de novo para não criar loop de botões
+                 damageFormula: null 
              });
         }}
       />

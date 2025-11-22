@@ -25,11 +25,7 @@ export function usePlayerCombat(character, showNotification) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('combat')
-      .select('*')
-      .eq('id', combatId)
-      .maybeSingle();
+    const { data } = await supabase.from('combat').select('*').eq('id', combatId).maybeSingle();
 
     if (data) {
       if (JSON.stringify(data) !== JSON.stringify(combatDataRef.current)) {
@@ -82,8 +78,8 @@ export function usePlayerCombat(character, showNotification) {
     await supabase.from('combat').update({ current_turn_index: nextIdx }).eq('id', combatData.id);
   };
 
-  // ATUALIZADO: Aceita damageFormula
-  const sendPlayerLog = async (actionName, rollResult, damageFormula = null) => {
+  // ATUALIZADO: Inclui characterId no log
+  const sendPlayerLog = async (actionName, rollResult, damageFormula = null, weaponCategory = null, damageBonus = 0) => {
     if (!combatData) return;
 
     const total = rollResult.total;
@@ -99,23 +95,21 @@ export function usePlayerCombat(character, showNotification) {
 
     const newLog = {
         id: Date.now(),
+        characterId: character.id, // ID PARA BUSCA NO GM
         message: logMsg,
         type: isCrit ? 'crit' : (isFail ? 'fail' : 'info'),
         timestamp: new Date().toISOString(),
-        damageFormula: damageFormula // Envia a fórmula para o Mestre
+        damageFormula,
+        damageBonus
     };
 
-    await supabase
-        .from('combat')
-        .update({ last_roll: newLog })
-        .eq('id', combatData.id);
+    await supabase.from('combat').update({ last_roll: newLog }).eq('id', combatData.id);
   };
 
   useEffect(() => {
     fetchCombat();
     const combatId = activeCombatIdRef.current;
     if (!combatId) return;
-    
     const interval = setInterval(fetchCombat, 1000);
     return () => clearInterval(interval);
   }, [character?.activeCombatId, fetchCombat]);

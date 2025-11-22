@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../services/supabaseClient";
 import { useCombatManager } from "../hooks/useCombatManager";
+import { useDamageSystem } from "../hooks/useDamageSystem"; // Certifique-se de ter criado este hook
 
 // Importações de Dados
 import { CLANS_DATA } from '../data/clans';
@@ -18,8 +19,7 @@ import ImageViewerModal from "../components/gm/ImageViewerModal";
 import StartCombatModal from "../components/gm/StartCombatModal";
 import RollTestModal from "../components/character-sheet/RollTestModal";
 import QuickStatInput from "../components/ui/QuickStatInput";
-import CombatTrackerCarousel from "../components/gm/CombatTrackerCarousel"; // <--- Componente do Carrossel
-import { parseDiceString, rollDice } from "../utils/dice";
+import CombatTrackerCarousel from "../components/gm/CombatTrackerCarousel";
 
 import {
   TrashIcon, MagnifyingGlassIcon, CheckCircleIcon, ClockIcon, PlayIcon, StopIcon, ForwardIcon,
@@ -45,6 +45,7 @@ function GameMasterPanel() {
   const showNotification = (msg, type = 'success') => setNotification({ message: msg, type });
 
   const { combatData, localLogs, createCombat, startRound, nextTurn, endCombat, gmRoll, updateStat, sendCombatLog, addCombatLog } = useCombatManager(user, showNotification);
+  const { calculateDamage } = useDamageSystem(); // Usando o novo hook de cálculo
 
   const [characters, setCharacters] = useState([]); 
   const [allNpcs, setAllNpcs] = useState([]); 
@@ -94,22 +95,26 @@ function GameMasterPanel() {
      setAllNpcs(prev => updateList(prev));
   };
 
+  // --- LÓGICA DE DANO DO LOG USANDO O NOVO HOOK ---
   const handleRollDamageFromLog = (logEntry) => {
       if (!logEntry.damageFormula) return;
       
-      const diceConfig = parseDiceString(logEntry.damageFormula);
-      const count = logEntry.type === 'crit' ? diceConfig.count * 2 : diceConfig.count;
+      // 1. Encontra o personagem na memória local (que tem o inventário atualizado)
+      const attacker = [...characters, ...allNpcs].find(c => c.id === logEntry.characterId);
       
-      const { total, rolls } = rollDice(count, diceConfig.faces);
-      const finalTotal = total + diceConfig.modifier;
-
-      const critText = logEntry.type === 'crit' ? ' (Crítico!)' : '';
-      const msg = `Dano: **${finalTotal}** [${rolls.join('+')}${diceConfig.modifier ? `+${diceConfig.modifier}` : ''}]${critText}`;
-
-      addCombatLog(msg, 'damage');
+      if (attacker) {
+          const isCrit = logEntry.type === 'crit';
+          // 2. Calcula usando o Hook centralizado
+          const result = calculateDamage(attacker, isCrit, logEntry.damageFormula, logEntry.damageBonus);
+          
+          // 3. Adiciona ao log
+          addCombatLog(result.message, 'damage');
+      } else {
+          addCombatLog("Erro: Personagem não encontrado para calcular dano.", "fail");
+      }
   };
 
-  const handleGmActionRoll = (npc, actionName, bonus, label, damageFormula = null) => {
+  const handleGmActionRoll = (npc, actionName, bonus, label, damageFormula = null, weaponCategory = null) => {
     setRollModalData({ 
         title: `${actionName}`, 
         modifier: bonus, 
@@ -121,11 +126,11 @@ function GameMasterPanel() {
             const isFail = roll === 1;
             
             let logMsg = `${npc.name} usou **${actionName}**: Rolou **${total}** (${roll}${bonus >= 0 ? '+' : ''}${bonus}).`;
-            
             if (isCrit) logMsg += " **CRÍTICO!**";
             if (isFail) logMsg += " **FALHA CRÍTICA!**";
 
-            sendCombatLog(logMsg, isCrit ? 'crit' : (isFail ? 'fail' : 'info'), damageFormula);
+            // Envia o ID do personagem para recuperar o inventário depois
+            sendCombatLog(logMsg, isCrit ? 'crit' : (isFail ? 'fail' : 'info'), damageFormula, weaponCategory, bonus, npc.id);
         } 
     });
   };
@@ -133,26 +138,21 @@ function GameMasterPanel() {
   const handleOpenNpcAttackMenu = (charId) => {
     const char = [...allNpcs, ...characters].find(c => c.id === charId);
     if (!char) return;
-    const weapon = char.inventory?.weapon || { name: 'Desarmado', attribute: 'Agilidade', damage: '1d4' };
+    const weapon = char.inventory?.weapon || { name: 'Desarmado', attribute: 'Agilidade', damage: '1d4', category: 'leve' };
     const attrKey = weapon.attribute?.toLowerCase() || 'agility';
     const attrValue = char.attributes?.[attrKey] || 0;
     const bonus = attrValue * (char.proficientAttribute === attrKey ? 2 : 1);
     
-    handleGmActionRoll(char, `Ataque: ${weapon.name}`, bonus, attrKey, weapon.damage || '1d4');
+    handleGmActionRoll(char, `Ataque: ${weapon.name}`, bonus, attrKey, weapon.damage || '1d4', weapon.category);
   };
 
   const handleOpenNpcDamageMenu = (charId) => {
     const char = [...allNpcs, ...characters].find(c => c.id === charId);
     if (!char) return;
-    const weapon = char.inventory?.weapon || { name: 'Desarmado', damage: '1d4', attribute: 'Agilidade' };
-    const damageFormula = weapon.damage || '1d4';
     
-    const attrKey = weapon.attribute?.toLowerCase() || 'agility';
-    const bonus = char.attributes?.[attrKey] || 0; 
-
-    const label = attrKey.charAt(0).toUpperCase() + attrKey.slice(1);
-
-    handleGmActionRoll(char, `Dano: ${weapon.name}`, bonus, label, damageFormula);
+    // Usa o hook para rolar dano direto
+    const result = calculateDamage(char, false); // false = não é crítico
+    addCombatLog(result.message, 'damage');
   };
 
   const handleCreateNpcFromImage = async (imageUrl) => {
@@ -180,7 +180,7 @@ function GameMasterPanel() {
       setAllNpcs(p => p.map(n => n.id === u.id ? u : n)); 
       setViewingCharacter(u);
       const d = {
-          name: u.name, clan_id: u.clanId, fighting_style: u.fightingStyle, innate_body_id: u.innateBodyId, body_refinement_level: u.bodyRefinementLevel, cultivation_stage: u.cultivationStage, mastery_level: u.mastery_level, attributes: u.attributes, stats: u.stats, techniques: u.techniques, inventory: u.inventory, is_in_scene: u.isInScene
+          name: u.name, clan_id: u.clanId, fighting_style: u.fightingStyle, innate_body_id: u.innateBodyId, body_refinement_level: u.bodyRefinement_level, cultivation_stage: u.cultivationStage, mastery_level: u.mastery_level, attributes: u.attributes, stats: u.stats, techniques: u.techniques, inventory: u.inventory, is_in_scene: u.isInScene
       };
       await supabase.from('characters').update(d).eq('id', u.id);
       showNotification("Salvo!", "success");
@@ -229,7 +229,7 @@ function GameMasterPanel() {
                 </div>
             )}
 
-            {/* CARROSSEL DE COMBATENTES (Substituindo o Grid antigo) */}
+            {/* CARROSSEL DE COMBATENTES */}
             <div className="mb-8">
                 <CombatTrackerCarousel 
                     turnOrder={turnOrder}
@@ -241,13 +241,12 @@ function GameMasterPanel() {
                 />
             </div>
 
-            {/* PAINEL INFERIOR (Integração Completa) */}
+            {/* PAINEL INFERIOR */}
             {combatData.status === 'active' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[500px]">
                     
                     {/* PAINEL DE AÇÕES DO NPC (Esquerda) */}
                     <div className="md:col-span-2 bg-white rounded-xl shadow-lg border-2 border-red-100 flex flex-col h-full overflow-hidden">
-                        {/* Header Fixo */}
                         <div className="flex-none flex items-center justify-between p-6 pb-4 border-b border-red-50">
                             <h3 className="text-xl font-bold text-brand-text flex items-center gap-2">
                                 <BoltIcon className="h-6 w-6 text-red-500" />
@@ -256,7 +255,6 @@ function GameMasterPanel() {
                             {isActiveNpc && <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold border border-red-200">NPC ATIVO</span>}
                         </div>
 
-                        {/* Conteúdo Rolável */}
                         <div className="flex-1 overflow-y-auto p-6 pt-4 custom-scrollbar min-h-0">
                             {isActiveNpc && activeFullData ? (
                                 <div className="space-y-6">
@@ -284,6 +282,7 @@ function GameMasterPanel() {
                                         </div>
                                     </div>
 
+                                    {/* Técnicas, Atributos (Mantidos) */}
                                     <div>
                                         <h4 className="font-bold text-gray-500 text-sm mb-2 uppercase tracking-wide">Técnicas de Combate</h4>
                                         {activeFullData.techniques && activeFullData.techniques.length > 0 ? (
@@ -347,18 +346,13 @@ function GameMasterPanel() {
 
                     {/* LOG DE COMBATE (Direita) */}
                     <div className="md:col-span-1 bg-gray-900 rounded-xl shadow-lg border border-gray-700 flex flex-col h-full overflow-hidden">
-                        {/* Header Fixo */}
                         <div className="flex-none flex items-center gap-2 p-4 pb-2 border-b border-gray-700">
                             <SparklesIcon className="h-5 w-5 text-yellow-500" />
                             <h3 className="text-lg font-bold text-gray-100">Histórico</h3>
                         </div>
-                        
-                        {/* Conteúdo Rolável */}
                         <div className="flex-1 overflow-y-auto p-4 pt-2 custom-scrollbar min-h-0">
                             {logs.length === 0 ? (
-                                <div className="h-full flex items-center justify-center text-gray-600 text-sm italic">
-                                    <p>O combate começou...</p>
-                                </div>
+                                <div className="h-full flex items-center justify-center text-gray-600 text-sm italic"><p>O combate começou...</p></div>
                             ) : (
                                 logs.map((log, idx) => (
                                     <div key={log.id || idx} className={`p-2 rounded text-sm border-l-4 mb-2 ${
@@ -367,22 +361,13 @@ function GameMasterPanel() {
                                         log.type === 'damage' ? 'bg-orange-900/30 border-orange-500 text-orange-200' :
                                         'bg-gray-800 border-purple-500 text-gray-300'
                                     }`}>
-                                        <p dangerouslySetInnerHTML={{ 
-                                            __html: log.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                                        }} />
-                                        
+                                        <p dangerouslySetInnerHTML={{ __html: log.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                                         {log.damageFormula && (
-                                            <button 
-                                                onClick={() => handleRollDamageFromLog(log)}
-                                                className="mt-2 px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded flex items-center gap-1 transition-colors shadow-sm w-full justify-center"
-                                            >
+                                            <button onClick={() => handleRollDamageFromLog(log)} className="mt-2 px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded flex items-center gap-1 transition-colors shadow-sm w-full justify-center">
                                                 <FireIcon className="h-3 w-3" /> Rolar Dano ({log.damageFormula})
                                             </button>
                                         )}
-
-                                        <span className="text-[10px] text-gray-500 block mt-1 text-right">
-                                            {new Date(log.timestamp).toLocaleTimeString()}
-                                        </span>
+                                        <span className="text-[10px] text-gray-500 block mt-1 text-right">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                     </div>
                                 ))
                             )}
@@ -392,25 +377,13 @@ function GameMasterPanel() {
                 </div>
             )}
             
-            <RollTestModal 
-                isOpen={rollModalData !== null} 
-                onClose={() => setRollModalData(null)} 
-                title={rollModalData?.title} 
-                modifier={rollModalData?.modifier} 
-                modifierLabel={rollModalData?.modifierLabel} 
-                diceFormula={rollModalData?.diceFormula}
-                onRollComplete={(result) => {
-                    if (rollModalData?.onRollConfirmed) {
-                        rollModalData.onRollConfirmed(result);
-                    }
-                }} 
-            />
+            <RollTestModal isOpen={rollModalData !== null} onClose={() => setRollModalData(null)} title={rollModalData?.title} modifier={rollModalData?.modifier} modifierLabel={rollModalData?.modifierLabel} diceFormula={rollModalData?.diceFormula} onRollComplete={(result) => { if (rollModalData?.onRollConfirmed) { rollModalData.onRollConfirmed(result); } }} />
             {notification && <NotificationToast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
         </div>
     );
   }; // FIM RENDER COMBAT
 
-  // --- RENDER DASHBOARD VIEW ---
+  // --- RENDER DASHBOARD VIEW (DECLARADA CORRETAMENTE AGORA) ---
   const renderDashboardView = () => {
     const categories = ["todos", ...new Set(gmImages.map((img) => img.category))];
     const filteredImages = activeCategory === "todos" ? gmImages : gmImages.filter((img) => img.category === activeCategory);
@@ -427,6 +400,7 @@ function GameMasterPanel() {
                 </div>
             </div>
 
+            {/* ... GRID JOGADORES / CENA ... */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                     <div className="bg-white p-6 rounded-2xl shadow-lg">
                         <h2 className="text-2xl font-bold text-brand-text mb-4 border-b pb-2">Jogadores</h2>
@@ -438,6 +412,7 @@ function GameMasterPanel() {
                     </div>
             </div>
 
+            {/* ... GALERIA ... */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
                 <div className="flex justify-between items-center mb-4 border-b pb-4"><h2 className="text-3xl font-bold text-brand-text">Personagens do Jianghu</h2><button onClick={() => setIsUploadModalOpen(true)} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">Adicionar Imagem</button></div>
                 <div className="flex space-x-2 border-b mb-4 pb-2 overflow-x-auto">{categories.map((cat) => (<button key={cat} onClick={() => setActiveCategory(cat)} className={`flex-shrink-0 px-4 py-2 text-sm font-semibold rounded-t-lg capitalize ${activeCategory === cat ? "bg-purple-500 text-white" : "text-gray-500 hover:bg-gray-200"}`}>{cat}</button>))}</div>
@@ -474,17 +449,12 @@ function GameMasterPanel() {
             <ImageViewerModal isOpen={viewingImage !== null} onClose={() => setViewingImage(null)} imageUrl={viewingImage} />
         </>
     );
-  }; // FIM RENDER DASHBOARD
+  };
 
   // --- MAIN RENDER ---
   if (viewingCharacter) {
     const isMyNpc = viewingCharacter.isNpc && viewingCharacter.userId === user.id;
-    return (
-        <> 
-            <CharacterSheet character={viewingCharacter} onBack={handleBackToList} showNotification={showNotification} onUpdateCharacter={isMyNpc ? handleUpdateNpc : () => {}} isGmMode={isMyNpc} /> 
-            {notification && <NotificationToast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />} 
-        </>
-    );
+    return (<> <CharacterSheet character={viewingCharacter} onBack={handleBackToList} showNotification={showNotification} onUpdateCharacter={isMyNpc ? handleUpdateNpc : () => {}} isGmMode={isMyNpc} /> {notification && <NotificationToast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />} </>);
   }
 
   return (
