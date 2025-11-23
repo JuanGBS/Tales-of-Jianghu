@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { supabase } from './services/supabaseClient';
 
-// Hooks
 import { usePlayerCombat } from './hooks/usePlayerCombat';
 
-// Componentes
 import SheetManager from './pages/SheetManager.jsx';
 import CharacterSheet from './pages/CharacterSheet.jsx';
 import NotificationToast from './components/ui/NotificationToast.jsx';
@@ -25,7 +23,6 @@ const defaultInventory = {
   wallet: { gold: 0, silver: 0, copper: 0 }
 };
 
-// --- MAPEAMENTO ATUALIZADO (LÊ DA NOVA TABELA TECHNIQUES) ---
 const mapToCamelCase = (data) => {
   if (!data) return null;
   return {
@@ -43,7 +40,6 @@ const mapToCamelCase = (data) => {
     attributes: data.attributes, 
     stats: data.stats, 
     
-    // AQUI MUDOU: Mapeia o array que vem da tabela relacional
     techniques: data.techniques ? data.techniques.map(t => ({
       id: t.id,
       name: t.name,
@@ -54,7 +50,7 @@ const mapToCamelCase = (data) => {
       attribute: t.attribute,
       effect: t.effect,
       requirements: t.requirements,
-      requiresRoll: t.requires_roll, // Mapeia snake_case do banco para camelCase
+      requiresRoll: t.requires_roll,
       concentration: t.concentration
     })) : [],
 
@@ -91,13 +87,11 @@ function AppContent() {
 
   const { combatData, showInitiativeRoll, setShowInitiativeRoll, sendInitiative, endTurn, forceRefresh, sendPlayerLog } = usePlayerCombat(character, showNotification);
 
-  // Realtime Sync: Atualiza quando a tabela characters muda (ex: HP, Chi)
   useEffect(() => {
     if (!character?.id) return;
     const charChannel = supabase
       .channel(`app-char-sync-${character.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'characters', filter: `id=eq.${character.id}` }, async () => {
-          // Refazemos o fetch completo para garantir que as técnicas venham junto no JOIN
           const { data } = await supabase.from('characters').select('*, techniques(*)').eq('id', character.id).single();
           if (data) setCharacter(mapToCamelCase(data));
       })
@@ -105,12 +99,10 @@ function AppContent() {
     return () => { supabase.removeChannel(charChannel); };
   }, [character?.id]);
 
-  // Initial Fetch
   useEffect(() => {
     if (user && profile && profile.role !== 'gm') {
       const fetchCharacter = async () => {
         setCharacterLoading(true);
-        // AQUI MUDOU: select('*, techniques(*)') para trazer a relação
         const { data } = await supabase.from('characters').select('*, techniques(*)').eq('user_id', user.id).single();
         if (data) setCharacter(mapToCamelCase(data));
         setCharacterLoading(false);
@@ -122,7 +114,6 @@ function AppContent() {
     }
   }, [user, profile]);
 
-  // Handlers
   const handlePlayerInitiativeRoll = (val) => { sendInitiative(val); setShowInitiativeRoll(false); };
   
   const handleEndPlayerTurn = () => {
@@ -143,8 +134,7 @@ function AppContent() {
     const { data } = await supabase.storage.from('character-images').list(`public/${user.id}`, { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
     if (data) { const urls = data.map(f => ({ id: f.id, name: f.name, publicURL: supabase.storage.from('character-images').getPublicUrl(`public/${user.id}/${f.name}`).data.publicUrl })); setUserImages(urls); }
   };
-  
-  // --- FIX: CORRIGIDO PARA ENVIAR SNAKE_CASE PARA O SUPABASE ---
+
   const handleSaveCharacter = async (data) => { 
       const dbPayload = {
           user_id: user.id,
@@ -158,10 +148,14 @@ function AppContent() {
           attributes: data.attributes,
           stats: data.stats,
           proficient_pericias: data.proficientPericias,
-          inventory: defaultInventory
+          inventory: defaultInventory,
       };
 
-      const { data: r, error } = await supabase.from('characters').insert([dbPayload]).select().single(); 
+      const { data: r, error } = await supabase
+          .from('characters')
+          .insert([dbPayload]) 
+          .select()
+          .single();
       
       if (error) {
           console.error("Erro ao criar personagem:", error);
@@ -169,20 +163,16 @@ function AppContent() {
           return;
       }
 
-      // Ao criar, technique é vazio, então mapeamos sem erro
       setCharacter(mapToCamelCase(r)); 
   };
   
   const handleDeleteCharacter = async () => { await supabase.from('characters').delete().eq('id', character.id); setCharacter(null); };
   
   const handleUpdateCharacter = async (u) => { 
-      // Atualiza apenas campos da tabela characters
       const d = { proficient_attribute: u.proficientAttribute, name: u.name, clan_id: u.clanId, fighting_style: u.fightingStyle, innate_body_id: u.innateBodyId, image_url: u.imageUrl, body_refinement_level: u.bodyRefinement_level, cultivation_stage: u.cultivationStage, mastery_level: u.mastery_level, attributes: u.attributes, stats: u.stats, proficient_pericias: u.proficientPericias, inventory: u.inventory }; 
       
       const { data } = await supabase.from('characters').update(d).eq('id', u.id).select().single(); 
       
-      // Precisamos manter as técnicas locais ou refazer o fetch.
-      // Como o update retorna só o char, mesclamos com as técnicas que já temos no estado 'u'
       if(data) {
           const mappedChar = mapToCamelCase(data);
           setCharacter({ ...mappedChar, techniques: u.techniques }); 
