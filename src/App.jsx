@@ -144,8 +144,31 @@ function AppContent() {
     if (data) { const urls = data.map(f => ({ id: f.id, name: f.name, publicURL: supabase.storage.from('character-images').getPublicUrl(`public/${user.id}/${f.name}`).data.publicUrl })); setUserImages(urls); }
   };
   
+  // --- FIX: CORRIGIDO PARA ENVIAR SNAKE_CASE PARA O SUPABASE ---
   const handleSaveCharacter = async (data) => { 
-      const { data: r } = await supabase.from('characters').insert([{ user_id: user.id, ...data, inventory: defaultInventory }]).select().single(); 
+      const dbPayload = {
+          user_id: user.id,
+          name: data.name,
+          clan_id: data.clanId,
+          fighting_style: data.fightingStyle,
+          innate_body_id: data.innateBodyId,
+          body_refinement_level: data.bodyRefinementLevel,
+          cultivation_stage: data.cultivationStage,
+          mastery_level: data.masteryLevel,
+          attributes: data.attributes,
+          stats: data.stats,
+          proficient_pericias: data.proficientPericias,
+          inventory: defaultInventory
+      };
+
+      const { data: r, error } = await supabase.from('characters').insert([dbPayload]).select().single(); 
+      
+      if (error) {
+          console.error("Erro ao criar personagem:", error);
+          showNotification("Erro ao criar: " + error.message, "error");
+          return;
+      }
+
       // Ao criar, technique é vazio, então mapeamos sem erro
       setCharacter(mapToCamelCase(r)); 
   };
